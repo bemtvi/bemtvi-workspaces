@@ -27,7 +27,7 @@ Declare it with the built-in `:Plugins` manager in your `init.lua`:
 
 ```lua
 nx.plugins({
-  { "davidrios/nxvim-workspaces" },
+  { "nxvim/nxvim-workspaces" },
 })
 ```
 
@@ -40,11 +40,11 @@ To override the defaults (config path, save key), call `setup()` yourself instea
 ```lua
 nx.plugins({
   {
-    "davidrios/nxvim-workspaces",
+    "nxvim/nxvim-workspaces",
     config = function()
       require("nxvim-workspaces").setup({
         save_key = "<C-s>", -- the save-actions keymap (default "<C-s>")
-        -- path = "/abs/path/to/config.json", -- default: "<cwd>/.nxvim/config.json"
+        -- path = "/abs/path/to/config.json", -- default: "<workspace-root>/.nxvim/config.json"
         -- notify_missing = false,           -- notify when no config file is found
         -- templates_dir = "…",              -- default: "<config>/workspace-templates"
       })
