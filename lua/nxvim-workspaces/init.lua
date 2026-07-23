@@ -24,13 +24,26 @@
 --       },
 --       "javascript,typescript,vue": { "lsps": { "ts_ls": {} } }
 --     },
---     "settings": { "number": true }       // optional: global, applied once at start
+--     "settings": { "number": true },      // optional: global, applied once at start
+--     "setup": { "require": "mymod", "method": "prepare", "params": {} } // optional
 --   }
 --
 -- A comma-joined key ("javascript,typescript,vue") applies to each listed filetype.
+--
+-- The optional top-level `setup` names a function (a module `require` or a dotted
+-- global) in the user's own config-dir Lua; it is called and, if it returns a promise,
+-- AWAITED before the rest of the config is applied — the escape hatch for logic that
+-- can't be plain data (compute paths, install deps, register a custom module).
+--
+-- Commands (registered by setup()):
+--   :WorkspaceConfig            edit the project config (create an empty one if absent)
+--   :WorkspaceTemplate {name}   merge a config-dir template into it, then open it
+--   :WorkspaceReload            re-apply the config from disk
 
 local config_mod = require("nxvim-workspaces.config")
 local apply_mod = require("nxvim-workspaces.apply")
+local actions = require("nxvim-workspaces.actions")
+local templates = require("nxvim-workspaces.templates")
 
 local M = {}
 
@@ -38,6 +51,7 @@ M.defaults = {
   path = nil, -- config file path; nil -> "<cwd>/.nxvim/config.json"
   save_key = "<C-s>", -- the save-actions keymap
   notify_missing = false, -- notify when no config file is present (default: silent)
+  templates_dir = nil, -- workspace-templates dir; nil -> "<config-dir>/workspace-templates"
 }
 
 M.options = nil -- the last opts passed to setup() (for introspection / re-load)
@@ -71,8 +85,19 @@ function M.apply(config, opts)
   return config
 end
 
--- Load the config file (async) and apply it. A MISSING file is the common, silent case
--- (a project may simply have none); a present-but-broken file fails LOUD. Returns the
+-- Run the optional async `setup` hook and await it before the rest of the config is
+-- applied. Returns a promise that fulfils once the hook has settled (immediately when
+-- there is no hook). A hook failure rejects, aborting the apply (surfaced loud upstream).
+function M._run_setup(config)
+  if not config.setup then
+    return nx.promise.resolve(true)
+  end
+  return actions.run({ config.setup })
+end
+
+-- Load the config file (async) and apply it: run the `setup` hook first (awaited), then
+-- apply settings / lsps / save actions. A MISSING file is the common, silent case (a
+-- project may simply have none); a present-but-broken file fails LOUD. Returns the
 -- promise so callers (and tests) can await completion.
 function M.load(opts)
   opts = opts or M.options or {}
@@ -87,7 +112,10 @@ function M.load(opts)
         return
       end
       return nx.fs.read_text(path):next(function(text)
-        M.apply(M.parse(text), opts)
+        local config = M.parse(text)
+        return M._run_setup(config):next(function()
+          M.apply(config, opts)
+        end)
       end)
     end)
     :catch(function(err)
@@ -96,16 +124,86 @@ function M.load(opts)
     end)
 end
 
--- M.setup(opts) — the entry point. Records the options, then loads + applies the config.
+-- ----- the :Workspace* commands ---------------------------------------------
+
+-- Open the project's config, creating an empty skeleton first when it doesn't exist.
+local function edit_config(opts)
+  local path = opts.path or default_path()
+  local function open()
+    nx.cmd("edit " .. vim.fn.fnameescape(path))
+  end
+  nx.fs
+    .exists(path)
+    :next(function(exists)
+      if exists then
+        return open()
+      end
+      return nx.async(function()
+        local dir = path:match("^(.*)/[^/]+$")
+        if dir then
+          nx.await(nx.fs.mkdir(dir, { recursive = true }))
+        end
+        nx.await(
+          nx.fs.write(path, nx.json.encode({ languages = {}, settings = {} }, { pretty = true }))
+        )
+        open()
+      end)()
+    end)
+    :catch(function(err)
+      nx.notify("nxvim-workspaces: " .. tostring(err and err.message or err), nx.log.levels.ERROR)
+    end)
+end
+
+-- Register the global :Workspace* commands (idempotent — safe to re-run on re-setup).
+function M._register_commands(opts)
+  nx.command("WorkspaceConfig", function()
+    edit_config(opts)
+  end, { desc = "Edit the project's .nxvim/config.json (creating it if absent)" })
+
+  nx.command("WorkspaceTemplate", function(o)
+    local name = o.fargs and o.fargs[1]
+    if not name or name == "" then
+      nx.notify("nxvim-workspaces: usage: :WorkspaceTemplate {name}", nx.log.levels.ERROR)
+      return
+    end
+    templates
+      .add(name, { dir = opts.templates_dir, config_path = opts.path })
+      :next(function(path)
+        nx.cmd("edit " .. vim.fn.fnameescape(path))
+        nx.notify("nxvim-workspaces: merged template '" .. name .. "'", nx.log.levels.INFO)
+      end)
+      :catch(function(err)
+        nx.notify("nxvim-workspaces: " .. tostring(err and err.message or err), nx.log.levels.ERROR)
+      end)
+  end, {
+    desc = "Merge a workspace template into .nxvim/config.json, then open it",
+    usage = "{template}",
+    -- Async completer (lists template names in the picker).
+    complete = function()
+      return templates.list(opts.templates_dir)
+    end,
+  })
+
+  nx.command("WorkspaceReload", function()
+    M.load(opts):next(function()
+      nx.notify("nxvim-workspaces: reloaded config", nx.log.levels.INFO)
+    end)
+  end, { desc = "Re-apply the project's .nxvim/config.json from disk" })
+end
+
+-- M.setup(opts) — the entry point. Records the options, registers the :Workspace*
+-- commands, then loads + applies the config.
 --   opts.path            override the config path (default "<cwd>/.nxvim/config.json")
 --   opts.save_key        override the save-actions keymap (default "<C-s>")
 --   opts.notify_missing  notify when no config file is found (default false)
+--   opts.templates_dir   override the templates dir (default "<config>/workspace-templates")
 function M.setup(opts)
   opts = opts or {}
   if type(opts) ~= "table" then
     error("nxvim-workspaces.setup: opts must be a table", 2)
   end
   M.options = opts
+  M._register_commands(opts)
   return M.load(opts)
 end
 

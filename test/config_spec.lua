@@ -75,6 +75,24 @@ nx.test.describe("nxvim-workspaces.config.normalize", function()
     nx.test.expect(#n.warnings).to_be(2)
   end)
 
+  nx.test.it("normalizes a top-level `setup` hook", function()
+    local n = config.normalize({
+      setup = { require = "mymod", method = "prepare", params = { a = 1 } },
+      settings = { number = true },
+    })
+    nx.test.expect(n.setup.require).to_be("mymod")
+    nx.test.expect(n.setup.method).to_be("prepare")
+    nx.test.expect(n.setup.params.a).to_be(1)
+    nx.test.expect(#n.warnings).to_be(0)
+  end)
+  nx.test.it("fails loud when `setup` lacks a method", function()
+    nx.test
+      .expect(function()
+        config.normalize({ setup = { require = "x" } })
+      end)
+      .to_error("method")
+  end)
+
   nx.test.it("fails loud on a non-object root", function()
     nx.test
       .expect(function()

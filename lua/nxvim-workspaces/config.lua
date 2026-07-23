@@ -10,6 +10,7 @@
 --
 --   {
 --     settings   = { <name> = <value>, ... } | nil,   -- global, applied once at start
+--     setup      = { require=, method=, params= } | nil, -- async hook, awaited first
 --     languages  = {
 --       { filetypes   = { "js", "html", ... },        -- the language key, comma-split
 --         lsps        = { <name> = <cfg-table>, ... }, -- may be empty
@@ -82,19 +83,20 @@ local function check_settings(settings, where)
   return settings
 end
 
--- Validate one save action: `{ require=<string>, method=<string>, params=<any?> }`.
--- `params` is optional and opaque — it is handed to the resolved function verbatim.
-local function check_action(action, where)
-  if type(action) ~= "table" then
-    fail(where .. " each save_action must be an object")
+-- Validate a call spec: `{ require=<string>, method=<string>, params=<any?> }` — the
+-- shape shared by save actions and the top-level `setup` hook. `params` is optional and
+-- opaque; it is handed to the resolved function verbatim.
+local function check_call(spec, where)
+  if type(spec) ~= "table" then
+    fail(where .. " must be an object with `require`/`method`")
   end
-  if type(action.require) ~= "string" or action.require == "" then
-    fail(where .. " save_action.require must be a non-empty module-name string")
+  if type(spec.require) ~= "string" or spec.require == "" then
+    fail(where .. " `require` must be a non-empty module-name string")
   end
-  if type(action.method) ~= "string" or action.method == "" then
-    fail(where .. " save_action.method must be a non-empty method-name string")
+  if type(spec.method) ~= "string" or spec.method == "" then
+    fail(where .. " `method` must be a non-empty method-name string")
   end
-  return { require = action.require, method = action.method, params = action.params }
+  return { require = spec.require, method = spec.method, params = spec.params }
 end
 
 -- Validate one language block (`{ lsps?, save_actions?, settings? }`) under its key.
@@ -130,7 +132,7 @@ local function check_language(key, block, warn)
       fail(where .. " `save_actions` must be an array")
     end
     for i, a in ipairs(block.save_actions) do
-      save_actions[i] = check_action(a, where)
+      save_actions[i] = check_call(a, where .. " save_action[" .. i .. "]")
     end
   end
 
@@ -168,6 +170,13 @@ function M.normalize(raw)
     settings = check_settings(raw.settings, "top-level")
   end
 
+  -- The optional async `setup` hook: a call spec run + awaited BEFORE the rest of the
+  -- config is applied (its Lua lives in the user's config dir; the JSON just names it).
+  local setup = nil
+  if raw.setup ~= nil then
+    setup = check_call(raw.setup, "top-level `setup`")
+  end
+
   local languages = {}
   if raw.languages ~= nil then
     if type(raw.languages) ~= "table" then
@@ -179,12 +188,12 @@ function M.normalize(raw)
   end
 
   for k in pairs(raw) do
-    if k ~= "settings" and k ~= "languages" then
+    if k ~= "settings" and k ~= "languages" and k ~= "setup" then
       warn("unknown top-level key '" .. tostring(k) .. "' (ignored)")
     end
   end
 
-  return { settings = settings, languages = languages, warnings = warnings }
+  return { settings = settings, setup = setup, languages = languages, warnings = warnings }
 end
 
 return M

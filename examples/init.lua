@@ -18,9 +18,15 @@
 --   4. Open a Python file (`:e demo.py`) to see the "python" block's fixAll + format
 --      chain on <C-s> (needs the `ruff` server installed to actually reformat).
 --
+-- Commands (this config dir ships one template, workspace-templates/python.json):
+--   :WorkspaceConfig            open `.nxvim/config.json` for editing
+--   :WorkspaceTemplate python   merge that template into `.nxvim/config.json`, then open
+--                               it (tab-completes the template names)
+--   :WorkspaceReload            re-apply the config from disk after editing
+--
 -- Nothing here is Lua config for the settings themselves — edit `.nxvim/config.json`
--- and relaunch to change the LSPs, save actions, or options. That is the whole point:
--- a committable, per-project JSON file instead of hand-written rc Lua.
+-- and relaunch (or `:WorkspaceReload`) to change the LSPs, save actions, or options.
+-- That is the whole point: a committable, per-project JSON file instead of rc Lua.
 
 local here = vim.fn.expand("<sfile>:p:h") -- the examples/ dir
 

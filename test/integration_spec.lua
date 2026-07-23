@@ -67,6 +67,41 @@ nx.test.describe("nxvim-workspaces end-to-end", function()
     nx.test.expect(notified).to_match("nxvim%-workspaces")
   end)
 
+  nx.test.it("runs the async `setup` hook, awaited, before applying the rest", function(t)
+    local dir = nx.test.tempdir()
+    _G.__ws_probe = nil
+    _G.__ws_setup_ran = nil
+    package.loaded["ws_setup_mock"] = {
+      prepare = function()
+        _G.__ws_probe = vim.o.tabstop -- captured BEFORE apply mutates it
+        return nx.promise.new(function(resolve)
+          nx.on_next_tick(function()
+            _G.__ws_setup_ran = true
+            resolve(true)
+          end)
+        end)
+      end,
+    }
+    vim.o.tabstop = 3
+    local path = write_config(dir, {
+      setup = { require = "ws_setup_mock", method = "prepare" },
+      settings = { tabstop = 8 },
+    })
+
+    nx.await(ws.setup({ path = path }))
+
+    nx.test.expect(_G.__ws_setup_ran).to_be_truthy() -- the hook ran (its promise settled)
+    nx.test.expect(_G.__ws_probe).to_be(3) -- the hook saw the pre-apply value
+    nx.test.expect(vim.o.tabstop).to_be(8) -- apply ran after the hook
+  end)
+
+  nx.test.it("registers the :Workspace* commands", function()
+    ws._register_commands({})
+    nx.test.expect(nx._user_commands["WorkspaceConfig"]).never.to_be_nil()
+    nx.test.expect(nx._user_commands["WorkspaceTemplate"]).never.to_be_nil()
+    nx.test.expect(nx._user_commands["WorkspaceReload"]).never.to_be_nil()
+  end)
+
   nx.test.it("M.parse fails loud on a broken shape", function()
     nx.test
       .expect(function()

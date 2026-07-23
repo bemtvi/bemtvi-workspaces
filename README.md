@@ -42,6 +42,7 @@ nx.plugins({
         save_key = "<C-s>", -- the save-actions keymap (default "<C-s>")
         -- path = "/abs/path/to/config.json", -- default: "<cwd>/.nxvim/config.json"
         -- notify_missing = false,           -- notify when no config file is found
+        -- templates_dir = "…",              -- default: "<config>/workspace-templates"
       })
     end,
   },
@@ -82,7 +83,9 @@ nx.plugins({
   "settings": {
     "number": true,
     "relativenumber": true
-  }
+  },
+
+  "setup": { "require": "my.workspace", "method": "prepare", "params": {} }
 }
 ```
 
@@ -140,6 +143,40 @@ is applied **buffer-local** when a file of that type opens. Any vim option name 
 an unmodeled name warns-but-stores (the lenient compat surface), it never aborts the
 load.
 
+### `setup` — an async hook, awaited first
+
+The optional top-level `setup` is a `{ require, method, params }` call (same resolution
+as a save action) run **before anything else in the config is applied**. If its method
+returns a promise, it is **awaited** first — so a slow prepare step (compute a path,
+install a dependency, register a custom module the rest of the config references)
+finishes before the LSPs/settings/save-actions land.
+
+```json
+{ "setup": { "require": "my.workspace", "method": "prepare", "params": { "env": "dev" } } }
+```
+
+The referenced Lua lives in **your own config dir** (anything `require`-able, or a dotted
+global) — the JSON only names it. It is the escape hatch for the bit of logic that can't
+be plain data, mirroring the per-template `setup()` in a hand-written workspace rc. A
+failing hook is reported loud and **aborts** the rest of the apply.
+
+## Templates and commands
+
+`setup()` registers three commands for editing the project config from inside the editor:
+
+| command                     | what it does                                                          |
+| --------------------------- | -------------------------------------------------------------------- |
+| `:WorkspaceConfig`          | open `.nxvim/config.json` (creating an empty skeleton if absent)     |
+| `:WorkspaceTemplate {name}` | merge a template into `.nxvim/config.json`, then open it              |
+| `:WorkspaceReload`          | re-apply the config from disk (after editing, without a restart)     |
+
+**Templates** are ready-made JSON configs kept in your config dir under
+`workspace-templates/<name>.json` (each a partial or full `.nxvim/config.json`).
+`:WorkspaceTemplate <name>` tab-completes the available names, deep-merges the chosen one
+into the project config (template values win, existing siblings are kept), validates the
+result, and writes it back — the JSON twin of copying a per-workspace rc from a template.
+Override the templates dir with `setup({ templates_dir = "…" })`.
+
 ## Behavior notes
 
 - **No config, no problem.** A project without `.nxvim/config.json` is a silent no-op.
@@ -150,6 +187,9 @@ load.
   launch file's `FileType` has already fired; the plugin still applies the matching
   language's settings and `<C-s>` map to that buffer (the same current-buffer catch-up
   `nx.lsp.enable` does).
+- **`.nxvim/config.json` is trusted project config.** It spawns language-server commands,
+  runs save actions, and calls the `setup` hook — so, like a hand-written workspace rc, it
+  executes code on open. Treat one from a repo you don't trust as you would any rc file.
 
 ## Example
 
