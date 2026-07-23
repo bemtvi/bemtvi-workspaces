@@ -1,0 +1,27 @@
+{
+  "languages": {
+    "lua": {
+      "lsps": { "lua_ls": {} },
+      "save_actions": [
+        { "require": "nx.lsp", "method": "format" }
+      ],
+      "settings": { "shiftwidth": 2, "tabstop": 2, "expandtab": true }
+    },
+    "python": {
+      "lsps": { "ruff": {} },
+      "save_actions": [
+        {
+          "require": "nx.lsp",
+          "method": "code_action",
+          "params": { "context": { "only": ["source.fixAll"] }, "apply": true }
+        },
+        { "require": "nx.lsp", "method": "format" }
+      ]
+    }
+  },
+  "settings": {
+    "number": true,
+    "relativenumber": true,
+    "cursorline": true
+  }
+}

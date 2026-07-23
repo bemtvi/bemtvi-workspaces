@@ -1,0 +1,96 @@
+-- The save-action runner.
+--
+-- A save action is `{ require = <module>, method = <name>, params = <any?> }` — the
+-- declarative twin of `require(<module>)[<name>](<params>)`. `run` resolves each one to
+-- a callable and invokes them IN ORDER; when an action returns a promise, it is awaited
+-- before the next runs (so a promise-returning formatter completes before the write).
+-- `run_and_write` chains a `:write` after the last action settles.
+--
+-- CAVEAT (fire-and-forget verbs): nxvim's built-in `nx.lsp.*` verbs (`format`,
+-- `code_action`, …) ENQUEUE a request drained on the input tick and return `nil` — they
+-- do not hand back a promise. There is nothing to await, so the write lands right after
+-- the enqueue rather than after the language server's async edit arrives (an ordering an
+-- LSP round-trip can lose). Actions whose method returns a promise sequence exactly.
+
+local M = {}
+
+-- A thenable is our await handle: a table exposing a `:next` method (an `nx.promise`).
+local function is_thenable(v)
+  return type(v) == "table" and type(v.next) == "function"
+end
+M.is_thenable = is_thenable
+
+-- Resolve `name` to a table: prefer a real Lua module (`require`), else a DOTTED GLOBAL
+-- path (`nx.lsp`, `vim.lsp.buf`, …). The built-in editor verbs (format, code_action)
+-- live on global tables rather than modules, so both forms are supported — a `require`
+-- name for plugin modules (`conform`, `nx.lsp.buf`-style modules), a dotted path for the
+-- globals. Returns `(tbl)`, or `(nil, require_error)` when neither resolves.
+local function resolve_module(name)
+  local ok, mod = pcall(require, name)
+  if ok and (type(mod) == "table" or type(mod) == "userdata") then
+    return mod
+  end
+  local cur = _G or _ENV
+  for part in name:gmatch("[^.]+") do
+    if type(cur) ~= "table" then
+      cur = nil
+      break
+    end
+    cur = cur[part]
+  end
+  if type(cur) == "table" or type(cur) == "userdata" then
+    return cur
+  end
+  return nil, (not ok) and tostring(mod) or nil
+end
+
+-- Resolve an action to its callable. Fails LOUD when the module/global can't be found
+-- or the method isn't a function on it (a broken action is a config mistake, never a
+-- silent no-op).
+function M.resolve(action)
+  local mod, req_err = resolve_module(action.require)
+  if not mod then
+    local hint = req_err and (" (" .. req_err .. ")") or ""
+    error(
+      "nxvim-workspaces: cannot resolve '" .. action.require .. "' as a module or global" .. hint,
+      0
+    )
+  end
+  local fn = mod[action.method]
+  if type(fn) ~= "function" then
+    error(
+      "nxvim-workspaces: '" .. action.require .. "." .. action.method .. "' is not a function",
+      0
+    )
+  end
+  return fn
+end
+
+-- Run `actions` in order, awaiting any that return a promise. Returns a promise that
+-- fulfils once all have completed, or rejects on the first failure (resolve/invoke).
+function M.run(actions)
+  return nx.async(function()
+    for _, action in ipairs(actions) do
+      local fn = M.resolve(action)
+      local result = fn(action.params)
+      if is_thenable(result) then
+        nx.await(result)
+      end
+    end
+  end)()
+end
+
+-- The `<C-s>` handler: run the save actions, then `:write` — but only after every
+-- action has settled, and never when one failed (the failure is surfaced loud instead).
+function M.run_and_write(actions)
+  return M.run(actions)
+    :next(function()
+      nx.cmd("write")
+    end)
+    :catch(function(err)
+      local msg = type(err) == "table" and err.message or err
+      nx.notify("nxvim-workspaces: save actions failed: " .. tostring(msg), nx.log.levels.ERROR)
+    end)
+end
+
+return M

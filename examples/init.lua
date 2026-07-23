@@ -1,0 +1,32 @@
+-- ~~~ Runnable demo for nxvim-workspaces ~~~
+--
+-- Run it FROM this examples dir, so the current working directory is the one that
+-- holds `.nxvim/config.json` (where the plugin looks):
+--
+--     cd examples
+--     NXVIM_CONFIG=. nxvim sample.lua
+--
+-- What happens:
+--   1. The plugin is put on the runtimepath below; its `plugin/` entry auto-runs
+--      `setup({})`, which reads `./.nxvim/config.json` and applies it.
+--   2. GLOBAL settings apply at once (see `.nxvim/config.json` -> "settings"):
+--        SEE: a number column, relative numbers, and the current line highlighted.
+--   3. sample.lua is a `lua` file, so the "lua" language block fires:
+--        SEE: `:set shiftwidth?` -> 2, `:set expandtab?` -> on (buffer-local).
+--        TYPE some code and press <C-s> -> it runs the save actions (LSP format, if
+--        lua_ls is installed) and writes the file.
+--   4. Open a Python file (`:e demo.py`) to see the "python" block's fixAll + format
+--      chain on <C-s> (needs the `ruff` server installed to actually reformat).
+--
+-- Nothing here is Lua config for the settings themselves — edit `.nxvim/config.json`
+-- and relaunch to change the LSPs, save actions, or options. That is the whole point:
+-- a committable, per-project JSON file instead of hand-written rc Lua.
+
+local here = vim.fn.expand("<sfile>:p:h") -- the examples/ dir
+
+nx.plugins({
+  {
+    name = "nxvim-workspaces",
+    dir = vim.fn.fnamemodify(here, ":h"), -- the repo root (examples/'s parent)
+  },
+})
