@@ -13,6 +13,10 @@ It is built entirely on the documented `nx.*` API — `nx.fs` (async config read
 `nx.json`, `nx.lsp`, `nx.autocmd`, `nx.keymap`, `vim.o`. There is **no neovim
 compatibility layer**; nothing blocks and nothing is intercepted.
 
+> **This is a workspace feature.** It only acts in a `--workspace` session (`nxvim
+> --workspace [dir]`), reading `<workspace-root>/.nxvim/config.json`. In a bare editor it
+> does nothing. (Force it anyway with an explicit `setup({ path = "…" })`.)
+
 > This plugin only *configures* language servers — it does not install them. Install the
 > server binaries yourself. A missing binary fails **loud** (nxvim never pretends a
 > server that isn't there is working).
@@ -27,9 +31,9 @@ nx.plugins({
 })
 ```
 
-Run `:PluginSync` to clone it. That's all the setup there is: from then on, any project
-with a `.nxvim/config.json` gets it applied automatically when you open the editor in
-that directory.
+Run `:PluginSync` to clone it. That's all the setup there is: from then on, opening a
+project as a workspace (`nxvim --workspace [dir]`) applies its `.nxvim/config.json`
+automatically. (Opening the bare editor does nothing — this is a per-workspace feature.)
 
 To override the defaults (config path, save key), call `setup()` yourself instead:
 
@@ -190,6 +194,11 @@ Override the templates dir with `setup({ templates_dir = "…" })`.
 - **`.nxvim/config.json` is trusted project config.** It spawns language-server commands,
   runs save actions, and calls the `setup` hook — so, like a hand-written workspace rc, it
   executes code on open. Treat one from a repo you don't trust as you would any rc file.
+- **Remote (`--connect-daemon`) sessions work.** The project config lives in the workspace,
+  which is remote in a daemon session, so it is read/written through `nx.fs` (the same seam
+  that opens the file) at `nx.workspace.dir()`. Templates live in the config dir, which is
+  always local to the editor, so they are read through `nx.fs_local` (the local-always
+  seam) — never crossing to the daemon. The two seams are identical in a bare/local session.
 
 ## Example
 
@@ -197,7 +206,7 @@ A runnable demo lives in [`examples/`](examples). From the repo root:
 
 ```sh
 cd examples
-NXVIM_CONFIG=. nxvim sample.lua
+NXVIM_CONFIG=. nxvim --workspace . sample.lua
 ```
 
 `examples/.nxvim/config.json` enables `lua_ls`/`ruff`, sets global number columns, and

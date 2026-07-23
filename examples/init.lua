@@ -1,14 +1,17 @@
 -- ~~~ Runnable demo for nxvim-workspaces ~~~
 --
--- Run it FROM this examples dir, so the current working directory is the one that
--- holds `.nxvim/config.json` (where the plugin looks):
+-- This is a WORKSPACE feature, so launch with `--workspace` (its dir is where the plugin
+-- looks for `.nxvim/config.json`). Run it FROM this examples dir:
 --
 --     cd examples
---     NXVIM_CONFIG=. nxvim sample.lua
+--     NXVIM_CONFIG=. nxvim --workspace . sample.lua
+--
+-- (Without `--workspace` the plugin does nothing — that is the point.)
 --
 -- What happens:
 --   1. The plugin is put on the runtimepath below; its `plugin/` entry auto-runs
---      `setup({})`, which reads `./.nxvim/config.json` and applies it.
+--      `setup({})`, which — in this --workspace session — reads `./.nxvim/config.json`
+--      and applies it.
 --   2. GLOBAL settings apply at once (see `.nxvim/config.json` -> "settings"):
 --        SEE: a number column, relative numbers, and the current line highlighted.
 --   3. sample.lua is a `lua` file, so the "lua" language block fires:

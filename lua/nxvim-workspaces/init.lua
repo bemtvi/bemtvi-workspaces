@@ -6,6 +6,10 @@
 -- `nx.*` API — `nx.fs` (async config read), `nx.json`, `nx.lsp`, `nx.autocmd`,
 -- `nx.keymap`, `vim.o` — nothing blocks and nothing is intercepted.
 --
+-- This is a WORKSPACE feature: it acts only in a `--workspace` session (`nxvim
+-- --workspace [dir]`), reading `<workspace-root>/.nxvim/config.json`. A bare editor is
+-- left untouched. (`nx.workspace.active()` / `nx.workspace.dir()` are the gate.)
+--
 -- `.nxvim/config.json`:
 --
 --   {
@@ -57,8 +61,12 @@ M.defaults = {
 M.options = nil -- the last opts passed to setup() (for introspection / re-load)
 M.config = nil -- the last normalized config applied (for introspection / tests)
 
+-- The project config path: `<workspace-root>/.nxvim/config.json`. This is a
+-- per-workspace feature, so the root comes from the `--workspace` session
+-- (`nx.workspace.dir()`); the cwd is only a defensive fallback.
 local function default_path()
-  return vim.fn.getcwd() .. "/.nxvim/config.json"
+  local root = nx.workspace.dir() or vim.fn.getcwd()
+  return root .. "/.nxvim/config.json"
 end
 
 -- Parse + validate a raw JSON string into a normalized config. Fails LOUD on bad JSON.
@@ -191,9 +199,11 @@ function M._register_commands(opts)
   end, { desc = "Re-apply the project's .nxvim/config.json from disk" })
 end
 
--- M.setup(opts) — the entry point. Records the options, registers the :Workspace*
--- commands, then loads + applies the config.
---   opts.path            override the config path (default "<cwd>/.nxvim/config.json")
+-- M.setup(opts) — the entry point. Records the options, and — WHEN this is a
+-- `--workspace` session (the gate; an explicit `opts.path` forces it regardless) —
+-- registers the :Workspace* commands and loads + applies the config. In a bare (non
+-- `--workspace`) editor it is a silent no-op: `.nxvim/config.json` is per-workspace.
+--   opts.path            override the config path (default "<workspace>/.nxvim/config.json")
 --   opts.save_key        override the save-actions keymap (default "<C-s>")
 --   opts.notify_missing  notify when no config file is found (default false)
 --   opts.templates_dir   override the templates dir (default "<config>/workspace-templates")
@@ -203,6 +213,10 @@ function M.setup(opts)
     error("nxvim-workspaces.setup: opts must be a table", 2)
   end
   M.options = opts
+  -- Gate: only active in a --workspace session (or when a path is forced explicitly).
+  if not opts.path and not nx.workspace.active() then
+    return nx.promise.resolve(false)
+  end
   M._register_commands(opts)
   return M.load(opts)
 end

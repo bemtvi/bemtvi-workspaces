@@ -21,6 +21,25 @@ nx.test.describe("nxvim-workspaces.templates", function()
     nx.test.expect(#nx.await(templates.list(nx.test.tempdir() .. "/nope"))).to_be(0)
   end)
 
+  nx.test.it("reads templates via the LOCAL seam (so they work in remote sessions)", function()
+    -- The config dir is always local to the editor; nx.fs would cross to the daemon.
+    local ofs, ofsl = nx.fs.readdir, nx.fs_local.readdir
+    nx.fs.readdir = function()
+      return nx.promise.new(function(_, reject)
+        reject({ message = "templates must not use the remote nx.fs seam" })
+      end)
+    end
+    nx.fs_local.readdir = function()
+      return nx.promise.resolve({ { name = "only.json", type = "file" } })
+    end
+    local ok, names = pcall(function()
+      return nx.await(templates.list("/anywhere"))
+    end)
+    nx.fs.readdir, nx.fs_local.readdir = ofs, ofsl
+    nx.test.expect(ok).to_be_truthy()
+    nx.test.expect(names).to_equal({ "only" })
+  end)
+
   nx.test.it("read fails loud on invalid JSON", function()
     local dir = nx.test.tempdir()
     nx.await(nx.fs.write(dir .. "/bad.json", "{ not json"))

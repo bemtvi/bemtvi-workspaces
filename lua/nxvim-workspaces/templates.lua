@@ -6,6 +6,16 @@
 -- <name>` (see init.lua) deep-merges the chosen template into the project's config,
 -- validates the result, and writes it back — the JSON twin of the neovim setup that
 -- copies a per-workspace rc from a template dir.
+--
+-- REMOTE SESSIONS. Two filesystems are in play, and they route to different sides:
+--   * the TEMPLATES live in the config dir (`vim.fn.stdpath("config")`), which is always
+--     LOCAL to the editor process — in a `--connect-daemon` session it is the client's
+--     config (or the daemon's config materialized onto a local cache). So templates are
+--     read through `nx.fs_local` (the local-always seam), never `nx.fs` (which crosses to
+--     the daemon). `nx.fs_local` is exactly `nx.fs` in a bare/local session.
+--   * the PROJECT config (`.nxvim/config.json`) lives in the workspace, which in a daemon
+--     session is REMOTE — so it is read/written through `nx.fs`, the same seam the editor
+--     opens the file with. `add()` therefore mixes the two: local template, remote config.
 
 local config_mod = require("nxvim-workspaces.config")
 
@@ -18,9 +28,11 @@ function M.dir()
   return (cfg and cfg ~= "" and cfg or ".") .. "/workspace-templates"
 end
 
--- The project's config path for the current working directory.
+-- The project's config path: `<workspace-root>/.nxvim/config.json` (the cwd is only a
+-- defensive fallback — the :Workspace* commands run inside a --workspace session).
 function M.config_path()
-  return vim.fn.getcwd() .. "/.nxvim/config.json"
+  local root = nx.workspace.dir() or vim.fn.getcwd()
+  return root .. "/.nxvim/config.json"
 end
 
 -- List available template names (basename without the `.json`), sorted. Returns a
@@ -28,7 +40,7 @@ end
 function M.list(dir)
   dir = dir or M.dir()
   return nx.async(function()
-    local ok, entries = pcall(nx.await, nx.fs.readdir(dir))
+    local ok, entries = pcall(nx.await, nx.fs_local.readdir(dir))
     if not ok then
       return {}
     end
@@ -51,7 +63,7 @@ end
 function M.read(name, dir)
   dir = dir or M.dir()
   local path = dir .. "/" .. name .. ".json"
-  return nx.fs.read_text(path):next(function(text)
+  return nx.fs_local.read_text(path):next(function(text)
     local ok, raw = pcall(nx.json.decode, text)
     if not ok then
       error("nxvim-workspaces: template '" .. name .. "' has invalid JSON: " .. tostring(raw), 0)
