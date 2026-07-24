@@ -196,7 +196,7 @@ Override the templates dir with `setup({ templates_dir = "…" })`.
   `nx.lsp.enable` does).
 - **`.nxvim/config.json` runs code — so it is trust-gated.** It spawns language-server
   commands, runs save actions, and calls the `setup` hook, so the **first** apply of a
-  given config prompts `Trust and apply it? [y/N]`. The answer is remembered in a local
+  given config prompts (a floating **Trust and apply / Don't trust** popup). The answer is remembered in a local
   store keyed by the file's content hash; a config that **changes** on disk (e.g. after a
   pull) re-prompts. See [Trust](#trust) below.
 - **Remote (`--connect-daemon`) sessions work.** The project config lives in the workspace,
@@ -209,12 +209,22 @@ Override the templates dir with `setup({ templates_dir = "…" })`.
 
 Applying `.nxvim/config.json` executes code (language-server commands, save actions, the
 `setup` hook), so opening an unreviewed one from a cloned repo would be a code-execution
-vector. The plugin therefore asks before the **first** apply:
+vector. The plugin therefore asks before the **first** apply, in a centered modal popup:
 
 ```
-nxvim-workspaces: '/path/.nxvim/config.json' can run code (LSP servers, save actions,
-the setup hook). Trust and apply it? [y/N]
+╭─ nxvim-workspaces — trust this config? ────────────────────╮
+│ This workspace wants to apply its config:                  │
+│   /path/.nxvim/config.json                                 │
+│                                                            │
+│ Applying it RUNS CODE — language servers, save             │
+│ actions, and the setup hook.                               │
+│                                                            │
+│   [y] Trust and apply      [N] Don't trust (default)       │
+╰────────────────────────────────────────────────────────────╯
 ```
+
+Only `y` trusts and applies; **anything else** — `n`/`q`/`<Esc>`, or `<CR>` — declines, so
+No is the default and trusting is always a deliberate `y`.
 
 - **The answer is remembered**, keyed by the config's absolute path **and a SHA-256 of its
   content**. Trust once and it applies silently thereafter — until the file changes, at

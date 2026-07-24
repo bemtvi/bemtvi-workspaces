@@ -86,6 +86,35 @@ nx.test.describe("nxvim-workspaces.trust", function()
     nx.test.expect(trust.file(CFG, dir)).never.to_be(trust.file("/other/.nxvim/config.json", dir))
   end)
 
+  nx.test.it("confirm() is a real floating dialog, answered by y / n", function(t)
+    -- Drive the actual grabbing-float dialog (not the stub): `y` trusts.
+    local allow = "PENDING"
+    trust.confirm("/x/.nxvim/config.json"):next(function(r)
+      allow = r
+    end)
+    t:feed("", { settle = 3 })
+    t:feed("y", { settle = 3 })
+    nx.test.expect(tostring(allow)).to_be("true")
+
+    -- `n` denies.
+    local deny = "PENDING"
+    trust.confirm("/x/.nxvim/config.json"):next(function(r)
+      deny = r
+    end)
+    t:feed("", { settle = 3 })
+    t:feed("n", { settle = 3 })
+    nx.test.expect(tostring(deny)).to_be("false")
+
+    -- <CR> is the default = No (only `y` accepts).
+    local cr = "PENDING"
+    trust.confirm("/x/.nxvim/config.json"):next(function(r)
+      cr = r
+    end)
+    t:feed("", { settle = 3 })
+    t:feed("<CR>", { settle = 3 })
+    nx.test.expect(tostring(cr)).to_be("false")
+  end)
+
   nx.test.it("persists the record { path, hash, trusted } to the local file", function()
     local dir = nx.test.tempdir()
     with_answer(true, function()

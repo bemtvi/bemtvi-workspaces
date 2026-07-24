@@ -37,15 +37,70 @@ function M.hash(text)
   return nx.hash.sha256(text)
 end
 
--- The confirmation prompt. Overridable (tests inject a deterministic answer). Defaults
--- to No, so a stray `<CR>` never trusts.
+-- The confirmation prompt -> promise of a boolean. A centered, focus-grabbing floating
+-- window (a real modal dialog on the `nx.component` "view" surface — the shape the
+-- `:Plugins` dialogs use), so a decision this consequential is impossible to miss. Only
+-- `y`/`Y` trusts; everything else — `n`/`q`/`<Esc>` AND `<CR>` — declines, so No is the
+-- default and trusting is a deliberate `y`. Overridable — tests inject a deterministic
+-- answer.
 function M.confirm(config_path)
-  return nx.ui.confirm(
-    "nxvim-workspaces: '"
-      .. config_path
-      .. "' can run code (LSP servers, save actions, the setup hook). Trust and apply it?",
-    { default = false }
-  )
+  return nx.promise.new(function(resolve)
+    local lines = {
+      "This workspace wants to apply its config:",
+      "  " .. config_path,
+      "",
+      "Applying it RUNS CODE — language servers, save",
+      "actions, and the setup hook.",
+      "",
+      "  [y] Trust and apply      [N] Don't trust (default)",
+    }
+    local width = 40
+    for _, l in ipairs(lines) do
+      width = math.max(width, #l)
+    end
+    width = math.min(width + 2, 100)
+
+    local done = false
+    local dialog = nx.component({
+      setup = function(ctx)
+        local function decide(v)
+          if done then
+            return
+          end
+          done = true
+          ctx.close()
+          resolve(v)
+        end
+        -- Only `y`/`Y` accepts; everything else (incl. `<CR>`) declines — No is default.
+        for _, k in ipairs({ "y", "Y" }) do
+          ctx.keymap_set("n", k, function()
+            decide(true)
+          end)
+        end
+        for _, k in ipairs({ "n", "N", "q", "<Esc>", "<CR>" }) do
+          ctx.keymap_set("n", k, function()
+            decide(false)
+          end)
+        end
+        return {}
+      end,
+      render = function()
+        return { lines = lines }
+      end,
+    })
+    dialog.mount({
+      name = "[nxvim-workspaces trust]",
+      float = {
+        width = width,
+        height = #lines,
+        grab = true,
+        relative = "editor",
+        align = "center",
+        border = "rounded",
+        title = " nxvim-workspaces — trust this config? ",
+      },
+    })
+  end)
 end
 
 -- Read this config's record (or nil when absent / unreadable / malformed). Local seam.
