@@ -1,7 +1,10 @@
 {
   "languages": {
     "python": {
-      "lsps": { "ruff": {}, "basedpyright": {} },
+      "lsps": {
+        "pyright": {},
+        "ruff": { "cmd": ["ruff", "server"], "filetypes": ["python"] }
+      },
       "save_actions": [
         {
           "require": "nx.lsp",

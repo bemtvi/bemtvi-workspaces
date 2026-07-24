@@ -8,7 +8,10 @@
       "settings": { "shiftwidth": 2, "tabstop": 2, "expandtab": true }
     },
     "python": {
-      "lsps": { "ruff": {} },
+      "lsps": {
+        "pyright": {},
+        "ruff": { "cmd": ["ruff", "server"], "filetypes": ["python"] }
+      },
       "save_actions": [
         {
           "require": "nx.lsp",

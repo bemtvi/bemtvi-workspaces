@@ -8,6 +8,16 @@
 --
 -- (Without `--workspace` the plugin does nothing — that is the point.)
 --
+-- The spec below pulls in nxvim-lspconfig as a dependency, so run `:PluginSync` once to
+-- clone it. That is where the SERVER PRESETS live: the config names `lua_ls` / `pyright`
+-- and nothing more, and the runtimepath `lsp/<name>.lua` preset supplies the actual
+-- command, filetypes, and root markers. Without it a bare `{}` server entry has no
+-- `cmd` and nxvim says so, loudly.
+--
+-- `ruff` has no bundled preset, so `.nxvim/config.json` spells its `cmd` out — the other
+-- half of the same story: an `lsps` entry is just an `nx.lsp.config` table, and a server
+-- nobody wrote a preset for is a couple of extra keys, not a blocker.
+--
 -- What happens:
 --   1. The plugin is put on the runtimepath below; its `plugin/` entry auto-runs
 --      `setup({})`, which — in this --workspace session — reads `./.nxvim/config.json`
@@ -40,5 +50,11 @@ nx.plugins({
   {
     name = "nxvim-workspaces",
     dir = vim.fn.fnamemodify(here, ":h"), -- the repo root (examples/'s parent)
+    -- The config names servers (`lua_ls`, `ruff`, …) and nothing else — no `cmd`, no
+    -- filetypes. Those come from the runtimepath preset `lsp/<name>.lua`, which is what
+    -- nxvim-lspconfig ships, so it has to be on the runtimepath for a bare `{}` server
+    -- entry to resolve to something spawnable. Declaring it here makes `:PluginSync`
+    -- clone it first and load it before this plugin.
+    dependencies = { "nxvim/nxvim-lspconfig" },
   },
 })

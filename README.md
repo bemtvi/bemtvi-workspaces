@@ -27,11 +27,15 @@ Declare it with the built-in `:Plugins` manager in your `init.lua`:
 
 ```lua
 nx.plugins({
-  { "nxvim/nxvim-workspaces" },
+  {
+    "nxvim/nxvim-workspaces",
+    -- Supplies the `lsp/<name>.lua` presets a config's server NAMES resolve against.
+    dependencies = { "nxvim/nxvim-lspconfig" },
+  },
 })
 ```
 
-Run `:PluginSync` to clone it. That's all the setup there is: from then on, opening a
+Run `:PluginSync` to clone them. That's all the setup there is: from then on, opening a
 project as a workspace (`nxvim --workspace [dir]`) applies its `.nxvim/config.json`
 automatically. (Opening the bare editor does nothing — this is a per-workspace feature.)
 
@@ -107,9 +111,23 @@ each listed filetype.
 | `settings`     | on the filetype     | `{ <option> = <value> }` applied **buffer-local** in a FileType autocmd |
 
 `lsps` values are ordinary [`nx.lsp.config`](https://github.com/davidrios/nxvim) tables
-(`cmd`, `filetypes`, `root_markers`, `settings`, …); a bare `{}` uses the server's
-bundled defaults. Each named server is registered and enabled — it attaches when you
-open a matching file (and immediately, if one is already open).
+(`cmd`, `filetypes`, `root_markers`, `settings`, …). Each named server is registered and
+enabled — it attaches when you open a matching file (and immediately, if one is already
+open).
+
+A bare `{}` leans entirely on the server's **bundled preset**: the runtimepath
+`lsp/<name>.lua` that supplies its command, filetypes, and root markers. Those presets
+are what [nxvim-lspconfig](https://github.com/nxvim/nxvim-lspconfig) ships, so install it
+alongside this plugin if you want to name servers rather than spell them out:
+
+```lua
+nx.plugins({
+  { "nxvim/nxvim-workspaces", dependencies = { "nxvim/nxvim-lspconfig" } },
+})
+```
+
+Without a preset (or an explicit `cmd` in the JSON) there is nothing to spawn, and nxvim
+says so loudly rather than pretending the server started.
 
 ### `save_actions` and `<C-s>`
 
