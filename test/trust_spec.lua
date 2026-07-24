@@ -26,11 +26,11 @@ end
 
 nx.test.describe("nxvim-workspaces.trust", function()
   nx.test.it("prompts once when undecided, then remembers 'allow'", function()
-    local store = nx.test.tempdir() .. "/trust.json"
+    local dir = nx.test.tempdir()
     local a, b
     local calls = with_answer(true, function()
-      a = nx.await(trust.ensure(CFG, TEXT, store))
-      b = nx.await(trust.ensure(CFG, TEXT, store)) -- remembered -> no second prompt
+      a = nx.await(trust.ensure(CFG, TEXT, dir))
+      b = nx.await(trust.ensure(CFG, TEXT, dir)) -- remembered -> no second prompt
     end)
     nx.test.expect(a).to_be_truthy()
     nx.test.expect(b).to_be_truthy()
@@ -38,11 +38,11 @@ nx.test.describe("nxvim-workspaces.trust", function()
   end)
 
   nx.test.it("remembers a denial (returns false, no re-prompt)", function()
-    local store = nx.test.tempdir() .. "/trust.json"
+    local dir = nx.test.tempdir()
     local a, b
     local calls = with_answer(false, function()
-      a = nx.await(trust.ensure(CFG, TEXT, store))
-      b = nx.await(trust.ensure(CFG, TEXT, store))
+      a = nx.await(trust.ensure(CFG, TEXT, dir))
+      b = nx.await(trust.ensure(CFG, TEXT, dir))
     end)
     nx.test.expect(a).to_be_falsy()
     nx.test.expect(b).to_be_falsy()
@@ -50,32 +50,56 @@ nx.test.describe("nxvim-workspaces.trust", function()
   end)
 
   nx.test.it("re-prompts when the config content changes", function()
-    local store = nx.test.tempdir() .. "/trust.json"
+    local dir = nx.test.tempdir()
     local calls = with_answer(true, function()
-      nx.await(trust.ensure(CFG, TEXT, store))
-      nx.await(trust.ensure(CFG, '{"settings":{"tabstop":8}}', store)) -- changed -> prompt again
+      nx.await(trust.ensure(CFG, TEXT, dir))
+      nx.await(trust.ensure(CFG, '{"settings":{"tabstop":8}}', dir)) -- changed -> prompt again
     end)
     nx.test.expect(calls).to_be(2)
   end)
 
   nx.test.it("forget() makes it re-prompt", function()
-    local store = nx.test.tempdir() .. "/trust.json"
+    local dir = nx.test.tempdir()
     local calls = with_answer(true, function()
-      nx.await(trust.ensure(CFG, TEXT, store))
-      nx.await(trust.forget(CFG, store))
-      nx.await(trust.ensure(CFG, TEXT, store))
+      nx.await(trust.ensure(CFG, TEXT, dir))
+      nx.await(trust.forget(CFG, dir))
+      nx.await(trust.ensure(CFG, TEXT, dir))
     end)
     nx.test.expect(calls).to_be(2)
   end)
 
-  nx.test.it("persists to the LOCAL store, keyed by path -> { hash, trusted }", function()
-    local store = nx.test.tempdir() .. "/sub/trust.json"
+  nx.test.it("uses a SEPARATE per-config file (no shared store to race on)", function()
+    local dir = nx.test.tempdir()
     with_answer(true, function()
-      nx.await(trust.ensure(CFG, TEXT, store))
+      nx.await(trust.ensure(CFG, TEXT, dir))
+      nx.await(trust.ensure("/other/.nxvim/config.json", TEXT, dir))
     end)
-    nx.test.expect(nx.await(nx.fs_local.exists(store))).to_be_truthy()
-    local data = nx.json.decode(nx.await(nx.fs_local.read_text(store)))
-    nx.test.expect(data[CFG].trusted).to_be(true)
-    nx.test.expect(data[CFG].hash).to_be(trust.hash(TEXT))
+    -- Two distinct configs -> two distinct files under the trust dir.
+    local entries = nx.await(nx.fs_local.readdir(dir))
+    local json = 0
+    for _, e in ipairs(entries) do
+      if e.name:match("%.json$") then
+        json = json + 1
+      end
+    end
+    nx.test.expect(json).to_be(2)
+    nx.test.expect(trust.file(CFG, dir)).never.to_be(trust.file("/other/.nxvim/config.json", dir))
+  end)
+
+  nx.test.it("persists the record { path, hash, trusted } to the local file", function()
+    local dir = nx.test.tempdir()
+    with_answer(true, function()
+      nx.await(trust.ensure(CFG, TEXT, dir))
+    end)
+    local file = trust.file(CFG, dir)
+    nx.test.expect(nx.await(nx.fs_local.exists(file))).to_be_truthy()
+    local rec = nx.json.decode(nx.await(nx.fs_local.read_text(file)))
+    nx.test.expect(rec.path).to_be(CFG)
+    nx.test.expect(rec.trusted).to_be(true)
+    nx.test.expect(rec.hash).to_be(trust.hash(TEXT))
+    -- No leftover temp files from the atomic write.
+    for _, e in ipairs(nx.await(nx.fs_local.readdir(dir))) do
+      nx.test.expect(e.name:match("%.tmp$")).to_be_nil()
+    end
   end)
 end)

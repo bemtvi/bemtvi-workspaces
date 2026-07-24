@@ -64,7 +64,7 @@ M.defaults = {
   notify_missing = false, -- notify when no config file is present (default: silent)
   templates_dir = nil, -- workspace-templates dir; nil -> "<config-dir>/workspace-templates"
   trust = true, -- prompt for permission before applying (the config runs code); false skips
-  trust_path = nil, -- local trust-store path; nil -> the default under stdpath("state")
+  trust_dir = nil, -- local trust dir; nil -> "<state>/nxvim-workspaces/trust"
 }
 
 M.options = nil -- the last opts passed to setup() (for introspection / re-load)
@@ -137,7 +137,7 @@ function M.load(opts)
         if opts.trust == false then
           gate = nx.promise.resolve(true)
         else
-          gate = trust.ensure(path, text, opts.trust_path)
+          gate = trust.ensure(path, text, opts.trust_dir)
         end
         return gate:next(function(allowed)
           if not allowed then
@@ -232,7 +232,7 @@ function M._register_commands(opts)
     nx.fs
       .read_text(path)
       :next(function(text)
-        return trust.remember(path, text, true, opts.trust_path)
+        return trust.remember(path, text, true, opts.trust_dir)
       end)
       :next(function()
         return M.load(opts) -- decision is now "allow" -> applies without prompting
@@ -248,7 +248,7 @@ function M._register_commands(opts)
   nx.command("WorkspaceUntrust", function()
     local path = opts.path or default_path()
     trust
-      .forget(path, opts.trust_path)
+      .forget(path, opts.trust_dir)
       :next(function()
         nx.notify(
           "nxvim-workspaces: forgot trust for '" .. path .. "' (re-prompts next load)",
@@ -270,7 +270,7 @@ end
 --   opts.notify_missing  notify when no config file is found (default false)
 --   opts.templates_dir   override the templates dir (default "<config>/workspace-templates")
 --   opts.trust           prompt for permission before applying (default true; false skips)
---   opts.trust_path      override the local trust-store path (default under stdpath state)
+--   opts.trust_dir       override the local trust dir (default under stdpath("state"))
 function M.setup(opts)
   opts = opts or {}
   if type(opts) ~= "table" then

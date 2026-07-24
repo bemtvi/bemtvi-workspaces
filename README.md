@@ -220,10 +220,13 @@ the setup hook). Trust and apply it? [y/N]
   content**. Trust once and it applies silently thereafter — until the file changes, at
   which point it re-prompts (a pulled-in edit can't slip through on an old decision). A
   declined config is also remembered (it won't nag every launch).
-- **The trust store is local**, always: it is written to `stdpath("state")/nxvim-workspaces/
-  trust.json` on the **client's** disk through `nx.fs_local`, so a remote daemon can never
-  pre-trust its own config. The gate runs **before** the `setup` hook, so nothing from an
-  untrusted config executes.
+- **The store is local, one file per config, written atomically.** Each config's decision
+  is its own file under `stdpath("state")/nxvim-workspaces/trust/` (named by a hash of the
+  config's path), so unrelated workspaces never contend on a shared file; each write goes
+  to a temp file and is renamed into place (atomic on a POSIX fs), so a concurrent reader
+  never sees a half-written record. It is written to the **client's** disk through
+  `nx.fs_local`, so a remote daemon can never pre-trust its own config. The gate runs
+  **before** the `setup` hook, so nothing from an untrusted config executes.
 - `:WorkspaceTrust` trusts + applies the current config (use it after declining, or to
   approve a changed one non-interactively); `:WorkspaceUntrust` forgets the decision.
 - To opt out of prompting entirely (trust your own machine), pass `setup({ trust = false })`

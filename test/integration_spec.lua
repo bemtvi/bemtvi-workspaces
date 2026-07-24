@@ -106,14 +106,14 @@ nx.test.describe("nxvim-workspaces end-to-end", function()
     trust.confirm = function()
       return nx.promise.resolve(false)
     end
-    nx.await(ws.setup({ path = path, trust_path = dir .. "/deny.json" }))
+    nx.await(ws.setup({ path = path, trust_dir = dir .. "/deny" }))
     nx.test.expect(vim.o.tabstop).to_be(2)
 
     -- Accept -> applied (separate store, so it re-decides).
     trust.confirm = function()
       return nx.promise.resolve(true)
     end
-    nx.await(ws.setup({ path = path, trust_path = dir .. "/allow.json" }))
+    nx.await(ws.setup({ path = path, trust_dir = dir .. "/allow" }))
     trust.confirm = oconfirm
     nx.test.expect(vim.o.tabstop).to_be(7)
   end)
