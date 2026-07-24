@@ -59,6 +59,29 @@ nx.test.describe("nxvim-workspaces.actions.resolve", function()
   end)
 end)
 
+nx.test.describe("nxvim-workspaces.actions + the built-in nx.lsp verbs", function()
+  -- The verbs return an nx.promise (resolving when the round-trip's edit is applied), so
+  -- the runner treats them as await handles and the write lands after the last edit.
+  -- With no server attached they resolve nil — a benign no-op that must neither hang nor
+  -- abort the chain.
+  nx.test.it("nx.lsp.format() hands back an await handle the runner recognizes", function()
+    local handle = nx.lsp.format()
+    nx.test.expect(actions.is_thenable(handle)).to_be_truthy()
+    nx.await(handle) -- settles (nil) with no server attached rather than hanging
+  end)
+
+  nx.test.it("sequences a later action after an awaited nx.lsp verb", function()
+    local mock = make_mock()
+    package.loaded["nxvim_ws_mock"] = mock
+    nx.await(actions.run({
+      { require = "nx.lsp", method = "format" },
+      { require = "nxvim_ws_mock", method = "sync", params = "after-format" },
+    }))
+    nx.test.expect(#mock.calls).to_be(1)
+    nx.test.expect(mock.calls[1].p).to_be("after-format")
+  end)
+end)
+
 nx.test.describe("nxvim-workspaces.actions.run", function()
   nx.test.it("runs actions in order, awaiting the promise-returning one first", function()
     local mock = make_mock()

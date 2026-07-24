@@ -66,14 +66,7 @@ nx.plugins({
         },
         "ruff": {}
       },
-      "save_actions": [
-        {
-          "require": "nx.lsp",
-          "method": "code_action",
-          "params": { "context": { "only": ["source.fixAll"] }, "apply": true }
-        },
-        { "require": "nx.lsp", "method": "format" }
-      ],
+      "save_actions": [{ "require": "nx.lsp", "method": "format" }],
       "settings": { "tabstop": 4, "shiftwidth": 4 }
     },
 
@@ -124,21 +117,27 @@ which invokes `<module-or-global>.<method>(<params>)`. `require` resolves either
 Lua module (`"conform"`) **or** a dotted global path — so the built-in editor verbs,
 which live on global tables, work directly:
 
-| `require`        | `method`                   | effect                                       |
-| ---------------- | -------------------------- | -------------------------------------------- |
-| `"nx.lsp"`       | `"format"`                 | LSP format the buffer                        |
-| `"nx.lsp"`       | `"code_action"`            | run a code action (e.g. `source.fixAll`)     |
-| `"vim.lsp.buf"`  | `"format"` / `code_action` | the neovim-shaped aliases of the above       |
-| `"conform"`      | `"format"`                 | a plugin module's method                     |
+| `require`       | `method`                   | effect                                      |
+| --------------- | -------------------------- | ------------------------------------------- |
+| `"nx.lsp"`      | `"format"`                 | LSP format the buffer                       |
+| `"nx.lsp"`      | `"code_action"`            | open the code-action chooser, apply the pick |
+| `"nx.lsp"`      | `"rename"`                 | rename the symbol under the cursor          |
+| `"vim.lsp.buf"` | `"format"` / `code_action` | the neovim-shaped aliases of the above      |
+| `"conform"`     | `"format"`                 | a plugin module's method                    |
 
 A bad action fails **loud** — a module/global that can't be resolved, or a method that
 isn't a function, raises with the offending name (never a silent no-op).
 
-> **Async note.** nxvim's built-in `nx.lsp` verbs *enqueue* a request on the input tick
-> and return nothing to wait on, so after such an action the write lands right away
-> rather than after the language server's async edit round-trips back. Actions whose
-> method returns a **promise** are awaited before the next action (and before the write),
-> so those sequence exactly.
+> **Async note.** Actions are **sequenced**: when one returns a promise it is awaited
+> before the next runs, and the `:write` lands only after the last has settled. nxvim's
+> built-in `nx.lsp` verbs return exactly such a promise — one that resolves when the
+> round-trip completes **and its edit is applied** — so a `[code_action, format]` chain
+> runs in order and the file is written with the server's last edit already in it.
+>
+> Those verbs are *resolve-only*: a no-op (no server attached, an empty result, a
+> superseded request, a cancelled chooser) resolves quietly instead of failing, so it
+> never blocks the write. `code_action` is **interactive** — it opens the chooser and the
+> rest of the chain waits for your pick (or your Esc).
 
 ### `settings`
 

@@ -6,11 +6,15 @@
 -- before the next runs (so a promise-returning formatter completes before the write).
 -- `run_and_write` chains a `:write` after the last action settles.
 --
--- CAVEAT (fire-and-forget verbs): nxvim's built-in `nx.lsp.*` verbs (`format`,
--- `code_action`, …) ENQUEUE a request drained on the input tick and return `nil` — they
--- do not hand back a promise. There is nothing to await, so the write lands right after
--- the enqueue rather than after the language server's async edit arrives (an ordering an
--- LSP round-trip can lose). Actions whose method returns a promise sequence exactly.
+-- The built-in `nx.lsp.*` verbs (`format`, `code_action`, `rename`, …) are among those:
+-- each returns an `nx.promise` that resolves once the round-trip completes and its edit
+-- is applied, so a `[code_action, format]` chain runs strictly in order and the `:write`
+-- lands after the language server's last edit — not after a bare enqueue.
+--
+-- Those verbs are RESOLVE-ONLY: a benign no-op (no server attached, a superseded
+-- request, an empty result, a cancelled prompt/chooser) resolves `nil` rather than
+-- rejecting, so such an action never aborts the chain or blocks the write. Only a real
+-- failure — an unresolvable module/method, or an action that raises — does.
 
 local M = {}
 

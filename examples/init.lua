@@ -17,9 +17,10 @@
 --   3. sample.lua is a `lua` file, so the "lua" language block fires:
 --        SEE: `:set shiftwidth?` -> 2, `:set expandtab?` -> on (buffer-local).
 --        TYPE some code and press <C-s> -> it runs the save actions (LSP format, if
---        lua_ls is installed) and writes the file.
---   4. Open a Python file (`:e demo.py`) to see the "python" block's fixAll + format
---      chain on <C-s> (needs the `ruff` server installed to actually reformat).
+--        lua_ls is installed) and writes the file. The write waits for the server's
+--        edits to land: `nx.lsp.format()` hands back a promise the runner awaits.
+--   4. Open a Python file (`:e demo.py`) to see the "python" block's format-on-<C-s>
+--      (needs the `ruff` server installed to actually reformat).
 --
 -- Commands (this config dir ships one template, workspace-templates/python.json):
 --   :WorkspaceConfig            open `.nxvim/config.json` for editing

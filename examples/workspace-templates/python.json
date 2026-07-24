@@ -3,11 +3,6 @@
     "python": {
       "lsps": { "ruff": {}, "basedpyright": {} },
       "save_actions": [
-        {
-          "require": "nx.lsp",
-          "method": "code_action",
-          "params": { "context": { "only": ["source.fixAll"] }, "apply": true }
-        },
         { "require": "nx.lsp", "method": "format" }
       ],
       "settings": { "tabstop": 4, "shiftwidth": 4, "expandtab": true }
