@@ -39,23 +39,32 @@
 -- AWAITED before the rest of the config is applied — the escape hatch for logic that
 -- can't be plain data (compute paths, install deps, register a custom module).
 --
+-- Applying the config runs code (LSP commands, save actions, the setup hook), so the
+-- first apply of a given config PROMPTS for permission; the decision is remembered in a
+-- LOCAL trust store keyed by content hash, and a changed config re-prompts (see trust.lua).
+--
 -- Commands (registered by setup()):
 --   :WorkspaceConfig            edit the project config (create an empty one if absent)
 --   :WorkspaceTemplate {name}   merge a config-dir template into it, then open it
 --   :WorkspaceReload            re-apply the config from disk
+--   :WorkspaceTrust             trust + apply the config (e.g. after declining)
+--   :WorkspaceUntrust           forget the trust decision (re-prompts next load)
 
 local config_mod = require("nxvim-workspaces.config")
 local apply_mod = require("nxvim-workspaces.apply")
 local actions = require("nxvim-workspaces.actions")
 local templates = require("nxvim-workspaces.templates")
+local trust = require("nxvim-workspaces.trust")
 
 local M = {}
 
 M.defaults = {
-  path = nil, -- config file path; nil -> "<cwd>/.nxvim/config.json"
+  path = nil, -- config file path; nil -> "<workspace-root>/.nxvim/config.json"
   save_key = "<C-s>", -- the save-actions keymap
   notify_missing = false, -- notify when no config file is present (default: silent)
   templates_dir = nil, -- workspace-templates dir; nil -> "<config-dir>/workspace-templates"
+  trust = true, -- prompt for permission before applying (the config runs code); false skips
+  trust_path = nil, -- local trust-store path; nil -> the default under stdpath("state")
 }
 
 M.options = nil -- the last opts passed to setup() (for introspection / re-load)
@@ -121,8 +130,28 @@ function M.load(opts)
       end
       return nx.fs.read_text(path):next(function(text)
         local config = M.parse(text)
-        return M._run_setup(config):next(function()
-          M.apply(config, opts)
+        -- Trust gate: the config runs code, so ask before applying (unless the caller
+        -- opts out with trust=false). This precedes the `setup` hook — which itself runs
+        -- code — so nothing from an untrusted config executes.
+        local gate
+        if opts.trust == false then
+          gate = nx.promise.resolve(true)
+        else
+          gate = trust.ensure(path, text, opts.trust_path)
+        end
+        return gate:next(function(allowed)
+          if not allowed then
+            nx.notify(
+              "nxvim-workspaces: '"
+                .. path
+                .. "' not applied (untrusted) — :WorkspaceTrust to allow.",
+              nx.log.levels.WARN
+            )
+            return
+          end
+          return M._run_setup(config):next(function()
+            M.apply(config, opts)
+          end)
         end)
       end)
     end)
@@ -197,6 +226,39 @@ function M._register_commands(opts)
       nx.notify("nxvim-workspaces: reloaded config", nx.log.levels.INFO)
     end)
   end, { desc = "Re-apply the project's .nxvim/config.json from disk" })
+
+  nx.command("WorkspaceTrust", function()
+    local path = opts.path or default_path()
+    nx.fs
+      .read_text(path)
+      :next(function(text)
+        return trust.remember(path, text, true, opts.trust_path)
+      end)
+      :next(function()
+        return M.load(opts) -- decision is now "allow" -> applies without prompting
+      end)
+      :next(function()
+        nx.notify("nxvim-workspaces: trusted '" .. path .. "'", nx.log.levels.INFO)
+      end)
+      :catch(function(err)
+        nx.notify("nxvim-workspaces: " .. tostring(err and err.message or err), nx.log.levels.ERROR)
+      end)
+  end, { desc = "Trust and apply the project's .nxvim/config.json" })
+
+  nx.command("WorkspaceUntrust", function()
+    local path = opts.path or default_path()
+    trust
+      .forget(path, opts.trust_path)
+      :next(function()
+        nx.notify(
+          "nxvim-workspaces: forgot trust for '" .. path .. "' (re-prompts next load)",
+          nx.log.levels.INFO
+        )
+      end)
+      :catch(function(err)
+        nx.notify("nxvim-workspaces: " .. tostring(err and err.message or err), nx.log.levels.ERROR)
+      end)
+  end, { desc = "Forget the trust decision for the project config (re-prompts next load)" })
 end
 
 -- M.setup(opts) — the entry point. Records the options, and — WHEN this is a
@@ -207,6 +269,8 @@ end
 --   opts.save_key        override the save-actions keymap (default "<C-s>")
 --   opts.notify_missing  notify when no config file is found (default false)
 --   opts.templates_dir   override the templates dir (default "<config>/workspace-templates")
+--   opts.trust           prompt for permission before applying (default true; false skips)
+--   opts.trust_path      override the local trust-store path (default under stdpath state)
 function M.setup(opts)
   opts = opts or {}
   if type(opts) ~= "table" then

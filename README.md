@@ -47,6 +47,7 @@ nx.plugins({
         -- path = "/abs/path/to/config.json", -- default: "<workspace-root>/.nxvim/config.json"
         -- notify_missing = false,           -- notify when no config file is found
         -- templates_dir = "…",              -- default: "<config>/workspace-templates"
+        -- trust = true,                     -- prompt before applying (config runs code)
       })
     end,
   },
@@ -173,6 +174,8 @@ failing hook is reported loud and **aborts** the rest of the apply.
 | `:WorkspaceConfig`          | open `.nxvim/config.json` (creating an empty skeleton if absent)     |
 | `:WorkspaceTemplate {name}` | merge a template into `.nxvim/config.json`, then open it              |
 | `:WorkspaceReload`          | re-apply the config from disk (after editing, without a restart)     |
+| `:WorkspaceTrust`           | trust + apply the config (e.g. after declining the prompt)           |
+| `:WorkspaceUntrust`         | forget the trust decision (re-prompts on the next load)              |
 
 **Templates** are ready-made JSON configs kept in your config dir under
 `workspace-templates/<name>.json` (each a partial or full `.nxvim/config.json`).
@@ -191,14 +194,40 @@ Override the templates dir with `setup({ templates_dir = "…" })`.
   launch file's `FileType` has already fired; the plugin still applies the matching
   language's settings and `<C-s>` map to that buffer (the same current-buffer catch-up
   `nx.lsp.enable` does).
-- **`.nxvim/config.json` is trusted project config.** It spawns language-server commands,
-  runs save actions, and calls the `setup` hook — so, like a hand-written workspace rc, it
-  executes code on open. Treat one from a repo you don't trust as you would any rc file.
+- **`.nxvim/config.json` runs code — so it is trust-gated.** It spawns language-server
+  commands, runs save actions, and calls the `setup` hook, so the **first** apply of a
+  given config prompts `Trust and apply it? [y/N]`. The answer is remembered in a local
+  store keyed by the file's content hash; a config that **changes** on disk (e.g. after a
+  pull) re-prompts. See [Trust](#trust) below.
 - **Remote (`--connect-daemon`) sessions work.** The project config lives in the workspace,
   which is remote in a daemon session, so it is read/written through `nx.fs` (the same seam
   that opens the file) at `nx.workspace.dir()`. Templates live in the config dir, which is
   always local to the editor, so they are read through `nx.fs_local` (the local-always
   seam) — never crossing to the daemon. The two seams are identical in a bare/local session.
+
+## Trust
+
+Applying `.nxvim/config.json` executes code (language-server commands, save actions, the
+`setup` hook), so opening an unreviewed one from a cloned repo would be a code-execution
+vector. The plugin therefore asks before the **first** apply:
+
+```
+nxvim-workspaces: '/path/.nxvim/config.json' can run code (LSP servers, save actions,
+the setup hook). Trust and apply it? [y/N]
+```
+
+- **The answer is remembered**, keyed by the config's absolute path **and a SHA-256 of its
+  content**. Trust once and it applies silently thereafter — until the file changes, at
+  which point it re-prompts (a pulled-in edit can't slip through on an old decision). A
+  declined config is also remembered (it won't nag every launch).
+- **The trust store is local**, always: it is written to `stdpath("state")/nxvim-workspaces/
+  trust.json` on the **client's** disk through `nx.fs_local`, so a remote daemon can never
+  pre-trust its own config. The gate runs **before** the `setup` hook, so nothing from an
+  untrusted config executes.
+- `:WorkspaceTrust` trusts + applies the current config (use it after declining, or to
+  approve a changed one non-interactively); `:WorkspaceUntrust` forgets the decision.
+- To opt out of prompting entirely (trust your own machine), pass `setup({ trust = false })`
+  — the config then applies without asking.
 
 ## Example
 

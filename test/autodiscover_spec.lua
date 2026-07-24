@@ -30,7 +30,7 @@ nx.test.describe("nxvim-workspaces workspace gate", function()
 
     vim.o.tabstop = 4
     with_workspace(false, dir, function()
-      nx.await(ws.setup({})) -- no path + not a workspace -> nothing happens
+      nx.await(ws.setup({ trust = false })) -- no path + not a workspace -> nothing happens
     end)
     nx.test.expect(vim.o.tabstop).to_be(4) -- unchanged
   end)
@@ -43,7 +43,7 @@ nx.test.describe("nxvim-workspaces workspace gate", function()
     )
 
     with_workspace(true, dir, function()
-      nx.await(ws.setup({}))
+      nx.await(ws.setup({ trust = false }))
     end)
     nx.test.expect(vim.o.tabstop).to_be(6)
   end)
