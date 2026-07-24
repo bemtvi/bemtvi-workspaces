@@ -19,8 +19,10 @@
 --        TYPE some code and press <C-s> -> it runs the save actions (LSP format, if
 --        lua_ls is installed) and writes the file. The write waits for the server's
 --        edits to land: `nx.lsp.format()` hands back a promise the runner awaits.
---   4. Open a Python file (`:e demo.py`) to see the "python" block's format-on-<C-s>
---      (needs the `ruff` server installed to actually reformat).
+--   4. Open a Python file (`:e demo.py`) to see the "python" block's fixAll + format
+--      chain on <C-s> (needs the `ruff` server installed to actually do anything). The
+--      fixAll step is `code_action` narrowed by `context.only` + `apply`, so it runs
+--      without popping the chooser.
 --
 -- Commands (this config dir ships one template, workspace-templates/python.json):
 --   :WorkspaceConfig            open `.nxvim/config.json` for editing

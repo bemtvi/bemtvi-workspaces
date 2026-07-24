@@ -80,6 +80,33 @@ nx.test.describe("nxvim-workspaces.actions + the built-in nx.lsp verbs", functio
     nx.test.expect(#mock.calls).to_be(1)
     nx.test.expect(mock.calls[1].p).to_be("after-format")
   end)
+
+  -- A save action's `params` is the verb's argument, so the JSON a config carries for
+  -- the fixAll-then-format chain has to be a shape `nx.lsp.code_action` accepts. It
+  -- validates loudly, so a params shape it rejects would fail the run here.
+  nx.test.it("passes a code_action's JSON params through to the verb", function()
+    local decoded = nx.json.decode('{ "context": { "only": ["source.fixAll"] }, "apply": true }')
+    local mock = make_mock()
+    package.loaded["nxvim_ws_mock"] = mock
+    nx.await(actions.run({
+      { require = "nx.lsp", method = "code_action", params = decoded },
+      { require = "nxvim_ws_mock", method = "sync", params = "after-fixall" },
+    }))
+    -- No server attached ⇒ the verb is a benign no-op that still settles, so the rest
+    -- of the chain (and, in the real handler, the write) proceeds.
+    nx.test.expect(#mock.calls).to_be(1)
+    nx.test.expect(mock.calls[1].p).to_be("after-fixall")
+  end)
+
+  nx.test.it("surfaces a params shape the verb rejects", function()
+    nx.test
+      .expect(function()
+        nx.await(actions.run({
+          { require = "nx.lsp", method = "code_action", params = { filter = function() end } },
+        }))
+      end)
+      .to_error("unsupported option")
+  end)
 end)
 
 nx.test.describe("nxvim-workspaces.actions.run", function()

@@ -66,7 +66,14 @@ nx.plugins({
         },
         "ruff": {}
       },
-      "save_actions": [{ "require": "nx.lsp", "method": "format" }],
+      "save_actions": [
+        {
+          "require": "nx.lsp",
+          "method": "code_action",
+          "params": { "context": { "only": ["source.fixAll"] }, "apply": true }
+        },
+        { "require": "nx.lsp", "method": "format" }
+      ],
       "settings": { "tabstop": 4, "shiftwidth": 4 }
     },
 
@@ -120,13 +127,32 @@ which live on global tables, work directly:
 | `require`       | `method`                   | effect                                      |
 | --------------- | -------------------------- | ------------------------------------------- |
 | `"nx.lsp"`      | `"format"`                 | LSP format the buffer                       |
-| `"nx.lsp"`      | `"code_action"`            | open the code-action chooser, apply the pick |
+| `"nx.lsp"`      | `"code_action"`            | run a code action — see the filter below    |
 | `"nx.lsp"`      | `"rename"`                 | rename the symbol under the cursor          |
 | `"vim.lsp.buf"` | `"format"` / `code_action` | the neovim-shaped aliases of the above      |
 | `"conform"`     | `"format"`                 | a plugin module's method                    |
 
 A bad action fails **loud** — a module/global that can't be resolved, or a method that
 isn't a function, raises with the offending name (never a silent no-op).
+
+**Picking one code action (no menu on save).** A bare `code_action` is interactive: it
+opens the chooser and the chain waits for your pick. `params` narrows it to the action
+you actually mean, which is what makes it usable on `<C-s>`:
+
+```json
+{
+  "require": "nx.lsp",
+  "method": "code_action",
+  "params": { "context": { "only": ["source.fixAll"] }, "apply": true }
+}
+```
+
+`context.only` is a list of code-action kinds (matched down the LSP hierarchy, so
+`source.fixAll` also picks up `source.fixAll.ruff`), and `apply` means *"if exactly one
+action survives that filter, just run it"*. Two or more survivors still open the chooser
+— there is a real choice to make — and none is a no-op that resolves quietly, so the
+write is never blocked. Options nxvim doesn't model (neovim's `filter`, `range`) fail
+loud rather than being silently dropped.
 
 > **Async note.** Actions are **sequenced**: when one returns a promise it is awaited
 > before the next runs, and the `:write` lands only after the last has settled. nxvim's
@@ -136,8 +162,7 @@ isn't a function, raises with the offending name (never a silent no-op).
 >
 > Those verbs are *resolve-only*: a no-op (no server attached, an empty result, a
 > superseded request, a cancelled chooser) resolves quietly instead of failing, so it
-> never blocks the write. `code_action` is **interactive** — it opens the chooser and the
-> rest of the chain waits for your pick (or your Esc).
+> never blocks the write.
 
 ### `settings`
 
