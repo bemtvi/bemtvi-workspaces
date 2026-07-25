@@ -38,6 +38,11 @@
 --      chain on <C-s> (needs the `ruff` server installed to actually do anything). The
 --      fixAll step is `code_action` narrowed by `context.only` + `apply`, so it runs
 --      without popping the chooser.
+--        NOTE: that block enables BOTH `pyright` and `ruff`, and both really attach —
+--        each syncs the file and publishes its own diagnostics, and a bare
+--        `:LspCodeAction` merges what both offer into one chooser. The format step
+--        names `ruff` explicitly (`params.name`) because pyright also advertises
+--        formatting, and "whichever comes first" is not a formatter choice.
 --
 -- Commands (this config dir ships one template, workspace-templates/python.json):
 --   :WorkspaceConfig            open `.nxvim/config.json` for editing

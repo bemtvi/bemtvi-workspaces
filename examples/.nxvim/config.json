@@ -18,7 +18,7 @@
           "method": "code_action",
           "params": { "context": { "only": ["source.fixAll"] }, "apply": true }
         },
-        { "require": "nx.lsp", "method": "format" }
+        { "require": "nx.lsp", "method": "format", "params": { "name": "ruff" } }
       ]
     }
   },

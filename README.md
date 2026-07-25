@@ -115,6 +115,17 @@ each listed filetype.
 enabled — it attaches when you open a matching file (and immediately, if one is already
 open).
 
+**Several servers per language is the normal case**, and all of them attach: the
+`pyright` + `ruff` pairing below runs both, each syncing the document and publishing its
+own diagnostics. Requests go to a server that can answer them — a hover to the
+type-checker, formatting to whichever advertises it — and code actions from *every*
+server merge into one chooser, so a linter's quick-fixes and a type-checker's refactors
+appear together. Pick the formatter explicitly when it matters:
+
+```json
+{ "require": "nx.lsp", "method": "format", "params": { "name": "ruff" } }
+```
+
 A bare `{}` leans entirely on the server's **bundled preset**: the runtimepath
 `lsp/<name>.lua` that supplies its command, filetypes, and root markers. Those presets
 are what [nxvim-lspconfig](https://github.com/nxvim/nxvim-lspconfig) ships, so install it
@@ -153,8 +164,9 @@ which live on global tables, work directly:
 A bad action fails **loud** — a module/global that can't be resolved, or a method that
 isn't a function, raises with the offending name (never a silent no-op). Note the built-in
 verbs live on `nx.lsp` itself: there is no `nx.lsp.buf`, and a config naming it fails loud
-(the neovim-shaped spelling is `vim.lsp.buf`). `nx.lsp.format` takes no arguments, so a
-`params` on it is inert; `code_action` is the verb that reads `params` (below).
+(the neovim-shaped spelling is `vim.lsp.buf`). `format` takes `{ "name": "<server>" }` to
+choose among several attached servers; `code_action` takes the filter below. An option
+neither models is rejected loudly rather than ignored.
 
 The whole chain is **resolved before any of it runs**, so a typo in the last action fails
 the save without half-applying the ones before it.
