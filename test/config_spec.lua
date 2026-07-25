@@ -75,6 +75,16 @@ nx.test.describe("nxvim-workspaces.config.normalize", function()
     nx.test.expect(#n.warnings).to_be(2)
   end)
 
+  -- Two blocks claiming one filetype is a config mistake with a silent outcome (both
+  -- install a save map on the same buffer, last write wins), so it is worth a warning.
+  nx.test.it("warns when two language blocks claim the same filetype", function()
+    local n = config.normalize({
+      languages = { python = { lsps = {} }, ["python,toml"] = { lsps = {} } },
+    })
+    nx.test.expect(#n.warnings).to_be(1)
+    nx.test.expect(n.warnings[1]).to_match("python")
+  end)
+
   nx.test.it("normalizes a top-level `setup` hook", function()
     local n = config.normalize({
       setup = { require = "mymod", method = "prepare", params = { a = 1 } },

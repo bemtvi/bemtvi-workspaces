@@ -34,18 +34,18 @@ local function resolve_module(name)
   if ok and (type(mod) == "table" or type(mod) == "userdata") then
     return mod
   end
-  local cur = _G or _ENV
+  local req_err = (not ok) and tostring(mod) or nil
+  local cur = _G
   for part in name:gmatch("[^.]+") do
     if type(cur) ~= "table" then
-      cur = nil
-      break
+      return nil, req_err
     end
     cur = cur[part]
   end
   if type(cur) == "table" or type(cur) == "userdata" then
     return cur
   end
-  return nil, (not ok) and tostring(mod) or nil
+  return nil, req_err
 end
 
 -- Resolve an action to its callable. Fails LOUD when the module/global can't be found
@@ -72,11 +72,18 @@ end
 
 -- Run `actions` in order, awaiting any that return a promise. Returns a promise that
 -- fulfils once all have completed, or rejects on the first failure (resolve/invoke).
+--
+-- Resolution is pure lookup with no side effects, so the WHOLE chain is resolved before
+-- anything runs: a typo in the last action fails the run without half-applying the ones
+-- before it (the same validate-before-you-touch-anything order `templates.add` uses).
 function M.run(actions)
   return nx.async(function()
-    for _, action in ipairs(actions) do
-      local fn = M.resolve(action)
-      local result = fn(action.params)
+    local calls = {}
+    for i, action in ipairs(actions) do
+      calls[i] = { fn = M.resolve(action), params = action.params }
+    end
+    for _, call in ipairs(calls) do
+      local result = call.fn(call.params)
       if is_thenable(result) then
         nx.await(result)
       end

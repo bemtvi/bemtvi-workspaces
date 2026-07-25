@@ -118,6 +118,34 @@ nx.test.describe("nxvim-workspaces end-to-end", function()
     nx.test.expect(vim.o.tabstop).to_be(7)
   end)
 
+  -- load() resolves WHAT happened, so :WorkspaceReload can report the truth instead of
+  -- claiming "reloaded" over a missing / declined / broken config.
+  nx.test.it("load resolves its outcome (missing / applied / untrusted / error)", function()
+    local dir = nx.test.tempdir()
+
+    nx.test
+      .expect(nx.await(ws.load({ path = dir .. "/nope.json", trust = false })))
+      .to_be("missing")
+
+    local path = write_config(dir, { settings = { tabstop = 5 } })
+    nx.test.expect(nx.await(ws.load({ path = path, trust = false }))).to_be("applied")
+
+    local oconfirm = trust.confirm
+    trust.confirm = function()
+      return nx.promise.resolve(false)
+    end
+    local onotify = nx.notify
+    nx.notify = function() end
+    local denied = nx.await(ws.load({ path = path, trust_dir = dir .. "/deny-status" }))
+    nx.await(nx.fs.write(dir .. "/bad.json", "{ not json"))
+    local broken = nx.await(ws.load({ path = dir .. "/bad.json", trust = false }))
+    nx.notify = onotify
+    trust.confirm = oconfirm
+
+    nx.test.expect(denied).to_be("untrusted")
+    nx.test.expect(broken).to_be("error")
+  end)
+
   nx.test.it("registers the :Workspace* commands", function()
     ws._register_commands({})
     nx.test.expect(nx._user_commands["WorkspaceConfig"]).never.to_be_nil()

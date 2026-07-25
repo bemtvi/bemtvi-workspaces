@@ -20,9 +20,9 @@
 --           "ruff": {}
 --         },
 --         "save_actions": [               // run in order by <C-s>, then :write
---           { "require": "nx.lsp.buf", "method": "code_action",
+--           { "require": "nx.lsp", "method": "code_action",
 --             "params": { "context": { "only": ["source.fixAll"] }, "apply": true } },
---           { "require": "nx.lsp.buf", "method": "format", "params": { "name": "ruff" } }
+--           { "require": "nx.lsp", "method": "format" }
 --         ],
 --         "settings": { "tabstop": 4 }     // optional: buffer-local for this filetype
 --       },
@@ -39,9 +39,14 @@
 -- AWAITED before the rest of the config is applied — the escape hatch for logic that
 -- can't be plain data (compute paths, install deps, register a custom module).
 --
+-- A save action names `<module-or-dotted-global>.<method>(<params>)`. The built-in verbs
+-- live on globals — `nx.lsp` (`format`, `code_action`, `rename`) and their neovim-shaped
+-- `vim.lsp.buf` aliases. There is no `nx.lsp.buf`; naming it fails loud.
+--
 -- Applying the config runs code (LSP commands, save actions, the setup hook), so the
 -- first apply of a given config PROMPTS for permission; the decision is remembered in a
--- LOCAL trust store keyed by content hash, and a changed config re-prompts (see trust.lua).
+-- LOCAL trust store keyed by the config's ABSOLUTE path + a hash of its content, so a
+-- changed config re-prompts (see trust.lua).
 --
 -- Commands (registered by setup()):
 --   :WorkspaceConfig            edit the project config (create an empty one if absent)
@@ -70,12 +75,18 @@ M.defaults = {
 M.options = nil -- the last opts passed to setup() (for introspection / re-load)
 M.config = nil -- the last normalized config applied (for introspection / tests)
 
--- The project config path: `<workspace-root>/.nxvim/config.json`. This is a
+-- The project config path: `<workspace-root>/.nxvim/config.json`, absolute. This is a
 -- per-workspace feature, so the root comes from the `--workspace` session
 -- (`nx.workspace.dir()`); the cwd is only a defensive fallback.
 local function default_path()
   local root = nx.workspace.dir() or vim.fn.getcwd()
-  return root .. "/.nxvim/config.json"
+  return vim.fn.fnamemodify(root .. "/.nxvim/config.json", ":p")
+end
+
+-- The config path in effect: an explicit `opts.path` (absolutized, so the trust key and
+-- every message name one canonical file) else the workspace default.
+local function config_path(opts)
+  return opts.path and vim.fn.fnamemodify(opts.path, ":p") or default_path()
 end
 
 -- Parse + validate a raw JSON string into a normalized config. Fails LOUD on bad JSON.
@@ -112,21 +123,32 @@ function M._run_setup(config)
   return actions.run({ config.setup })
 end
 
+-- The in-flight `M.load`, so a second load (a `:WorkspaceReload` on top of the startup
+-- one, or two reloads in a row) joins it instead of racing a second apply — and, when
+-- the config is untrusted, a second trust prompt.
+M._loading = nil
+
 -- Load the config file (async) and apply it: run the `setup` hook first (awaited), then
 -- apply settings / lsps / save actions. A MISSING file is the common, silent case (a
--- project may simply have none); a present-but-broken file fails LOUD. Returns the
--- promise so callers (and tests) can await completion.
+-- project may simply have none); a present-but-broken file fails LOUD.
+--
+-- Returns a promise of WHAT happened, so a caller can report the truth rather than
+-- assuming success: `"applied"`, `"missing"`, `"untrusted"`, or `"error"` (already
+-- notified). It never rejects — the failure is surfaced, not propagated.
 function M.load(opts)
   opts = opts or M.options or {}
-  local path = opts.path or default_path()
-  return nx.fs
+  if M._loading then
+    return M._loading
+  end
+  local path = config_path(opts)
+  local promise = nx.fs
     .exists(path)
     :next(function(exists)
       if not exists then
         if opts.notify_missing then
           nx.notify("nxvim-workspaces: no config at " .. path, nx.log.levels.INFO)
         end
-        return
+        return "missing"
       end
       return nx.fs.read_text(path):next(function(text)
         local config = M.parse(text)
@@ -147,10 +169,11 @@ function M.load(opts)
                 .. "' not applied (untrusted) — :WorkspaceTrust to allow.",
               nx.log.levels.WARN
             )
-            return
+            return "untrusted"
           end
           return M._run_setup(config):next(function()
             M.apply(config, opts)
+            return "applied"
           end)
         end)
       end)
@@ -158,14 +181,21 @@ function M.load(opts)
     :catch(function(err)
       local msg = type(err) == "table" and err.message or err
       nx.notify("nxvim-workspaces: " .. tostring(msg), nx.log.levels.ERROR)
+      return "error"
     end)
+  -- Release the guard once this load settles, whatever the outcome.
+  M._loading = promise:next(function(status)
+    M._loading = nil
+    return status
+  end)
+  return M._loading
 end
 
 -- ----- the :Workspace* commands ---------------------------------------------
 
 -- Open the project's config, creating an empty skeleton first when it doesn't exist.
 local function edit_config(opts)
-  local path = opts.path or default_path()
+  local path = config_path(opts)
   local function open()
     nx.cmd("edit " .. vim.fn.fnameescape(path))
   end
@@ -221,14 +251,20 @@ function M._register_commands(opts)
     end,
   })
 
+  -- Report what the reload actually did. A missing / declined / broken config has
+  -- already said so in its own words; claiming "reloaded" over it would contradict it.
   nx.command("WorkspaceReload", function()
-    M.load(opts):next(function()
-      nx.notify("nxvim-workspaces: reloaded config", nx.log.levels.INFO)
+    M.load(opts):next(function(status)
+      if status == "applied" then
+        nx.notify("nxvim-workspaces: reloaded config", nx.log.levels.INFO)
+      elseif status == "missing" then
+        nx.notify("nxvim-workspaces: no config at " .. config_path(opts), nx.log.levels.WARN)
+      end
     end)
   end, { desc = "Re-apply the project's .nxvim/config.json from disk" })
 
   nx.command("WorkspaceTrust", function()
-    local path = opts.path or default_path()
+    local path = config_path(opts)
     nx.fs
       .read_text(path)
       :next(function(text)
@@ -237,8 +273,10 @@ function M._register_commands(opts)
       :next(function()
         return M.load(opts) -- decision is now "allow" -> applies without prompting
       end)
-      :next(function()
-        nx.notify("nxvim-workspaces: trusted '" .. path .. "'", nx.log.levels.INFO)
+      :next(function(status)
+        if status == "applied" then
+          nx.notify("nxvim-workspaces: trusted + applied '" .. path .. "'", nx.log.levels.INFO)
+        end
       end)
       :catch(function(err)
         nx.notify("nxvim-workspaces: " .. tostring(err and err.message or err), nx.log.levels.ERROR)
@@ -246,7 +284,7 @@ function M._register_commands(opts)
   end, { desc = "Trust and apply the project's .nxvim/config.json" })
 
   nx.command("WorkspaceUntrust", function()
-    local path = opts.path or default_path()
+    local path = config_path(opts)
     trust
       .forget(path, opts.trust_dir)
       :next(function()
@@ -271,6 +309,8 @@ end
 --   opts.templates_dir   override the templates dir (default "<config>/workspace-templates")
 --   opts.trust           prompt for permission before applying (default true; false skips)
 --   opts.trust_dir       override the local trust dir (default under stdpath("state"))
+-- Returns a promise of the outcome — `M.load`'s status (`"applied"` / `"missing"` /
+-- `"untrusted"` / `"error"`), or `"inactive"` when the workspace gate said no.
 function M.setup(opts)
   opts = opts or {}
   if type(opts) ~= "table" then
@@ -279,7 +319,7 @@ function M.setup(opts)
   M.options = opts
   -- Gate: only active in a --workspace session (or when a path is forced explicitly).
   if not opts.path and not nx.workspace.active() then
-    return nx.promise.resolve(false)
+    return nx.promise.resolve("inactive")
   end
   M._register_commands(opts)
   return M.load(opts)

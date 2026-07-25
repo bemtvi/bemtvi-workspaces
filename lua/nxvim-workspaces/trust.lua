@@ -7,12 +7,15 @@
 -- keyed by the config's absolute path AND a hash of its CONTENT — so a config that
 -- changes on disk (e.g. after a pull) is untrusted again and re-prompts.
 --
--- STORAGE. One file PER CONFIG (named by a hash of the config's absolute path) under a
--- trust dir, rather than a single shared `trust.json`: unrelated workspaces never touch
--- the same file, so concurrent editors can't clobber each other's decisions with a
--- read-modify-write race. Each record is written ATOMICALLY — to a unique temp file in
--- the same dir, then renamed over the target (rename is atomic on a POSIX fs) — so a
--- reader never sees a half-written file and a crash mid-write can't corrupt a record.
+-- STORAGE. One file PER CONFIG (named by a hash of the config's absolute path — every
+-- path is canonicalized through `M.abs`, so the same config reached relatively is one
+-- record, not a second unprompted one) under a trust dir, rather than a single shared
+-- `trust.json`: unrelated workspaces never touch the same file, so concurrent editors
+-- can't clobber each other's decisions with a read-modify-write race. The dir is created
+-- 0700 — these are security decisions, not shared state. Each record is written
+-- ATOMICALLY — to a unique temp file in the same dir, then renamed over the target
+-- (rename is atomic on a POSIX fs) — so a reader never sees a half-written file and a
+-- crash mid-write can't corrupt a record.
 --
 -- The trust dir is LOCAL, always. The decision is the user's and must not be spoofable
 -- by a remote: in a `--connect-daemon` session the config is remote, but the store is on
@@ -26,10 +29,22 @@ function M.dir()
   return vim.fn.stdpath("state") .. "/nxvim-workspaces/trust"
 end
 
--- This config's record file: one per config PATH, named by its hash so unrelated
--- workspaces never share a file. `dir` overrides the trust dir (tests).
+-- The permission bits the trust dir is created with. It holds security decisions, so it
+-- is the user's alone (0700) rather than the 0755 a plain mkdir would give it.
+local DIR_MODE = tonumber("700", 8)
+
+-- The canonical form of a config path: ABSOLUTE, so the same config reached two ways
+-- (a relative `setup({ path = … })`, a `..`-laden workspace root) is one record rather
+-- than a second, silently-unprompted one. Every path that keys or lands in a record
+-- goes through here.
+function M.abs(config_path)
+  return vim.fn.fnamemodify(config_path, ":p")
+end
+
+-- This config's record file: one per config PATH, named by the hash of its ABSOLUTE
+-- form so unrelated workspaces never share a file. `dir` overrides the trust dir (tests).
 function M.file(config_path, dir)
-  return (dir or M.dir()) .. "/" .. nx.hash.sha256(config_path) .. ".json"
+  return (dir or M.dir()) .. "/" .. nx.hash.sha256(M.abs(config_path)) .. ".json"
 end
 
 -- The content hash a decision is bound to.
@@ -45,9 +60,22 @@ end
 -- answer.
 function M.confirm(config_path)
   return nx.promise.new(function(resolve)
+    -- The float is capped at 100 columns, so a deep path is elided from the LEFT — the
+    -- tail (…/<project>/.nxvim/config.json) is the part that identifies it. Leading
+    -- COMPONENTS are dropped whole, so the elision never cuts a path element (or a
+    -- multi-byte character) in half.
+    local shown = M.abs(config_path)
+    local max_path = 94
+    if #shown > max_path then
+      local parts = nx.str.split(shown, "/")
+      while #parts > 1 and #table.concat(parts, "/") + 2 > max_path do
+        table.remove(parts, 1)
+      end
+      shown = "…/" .. table.concat(parts, "/")
+    end
     local lines = {
       "This workspace wants to apply its config:",
-      "  " .. config_path,
+      "  " .. shown,
       "",
       "Applying it RUNS CODE — language servers, save",
       "actions, and the setup hook.",
@@ -56,7 +84,7 @@ function M.confirm(config_path)
     }
     local width = 40
     for _, l in ipairs(lines) do
-      width = math.max(width, #l)
+      width = math.max(width, nx.str.displaywidth(l))
     end
     width = math.min(width + 2, 100)
 
@@ -123,22 +151,28 @@ function M.read_record(config_path, dir)
 end
 
 -- Atomically write this config's record: write a unique temp file in the trust dir, then
--- rename it over the target. Local seam. Returns a promise.
+-- rename it over the target. Local seam. Returns a promise. A failed write/rename is
+-- reported (never swallowed) but takes its half-written temp file with it, so a failure
+-- leaves no litter in the store.
 function M.write_record(config_path, rec, dir)
   return nx.async(function()
     local trust_dir = dir or M.dir()
-    nx.await(nx.fs_local.mkdir(trust_dir, { recursive = true }))
+    nx.await(nx.fs_local.mkdir(trust_dir, { recursive = true, mode = DIR_MODE }))
     local final = M.file(config_path, dir)
     local tmp = final .. "." .. nx.uuid() .. ".tmp"
     nx.await(nx.fs_local.write(tmp, nx.json.encode(rec, { pretty = true })))
-    nx.await(nx.fs_local.rename(tmp, final))
+    local ok, err = pcall(nx.await, nx.fs_local.rename(tmp, final))
+    if not ok then
+      pcall(nx.await, nx.fs_local.remove(tmp))
+      error(err, 0)
+    end
   end)()
 end
 
 -- Record a decision (allow / deny) for `config_path` at its current content.
 function M.remember(config_path, text, trusted, dir)
   return M.write_record(config_path, {
-    path = config_path,
+    path = M.abs(config_path),
     hash = M.hash(text),
     trusted = trusted and true or false,
   }, dir)

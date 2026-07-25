@@ -57,6 +57,30 @@ nx.test.describe("nxvim-workspaces.actions.resolve", function()
       .expect(actions.resolve({ require = "vim.lsp.buf", method = "format" }))
       .to_be(vim.lsp.buf.format)
   end)
+
+  -- The README's save-action table is a promise about what a config may name. Pin it,
+  -- so a documented target can't quietly stop resolving (there is no `nx.lsp.buf` — a
+  -- config naming it fails loud at save time, which is why the docs must not offer it).
+  nx.test.it("resolves every save-action target the README documents", function()
+    for _, spec in ipairs({
+      { require = "nx.lsp", method = "format" },
+      { require = "nx.lsp", method = "code_action" },
+      { require = "nx.lsp", method = "rename" },
+      { require = "vim.lsp.buf", method = "format" },
+      { require = "vim.lsp.buf", method = "code_action" },
+      { require = "vim.lsp.buf", method = "rename" },
+    }) do
+      nx.test.expect(type(actions.resolve(spec))).to_be("function")
+    end
+  end)
+
+  nx.test.it("fails loud on `nx.lsp.buf`, which does not exist", function()
+    nx.test
+      .expect(function()
+        actions.resolve({ require = "nx.lsp.buf", method = "format" })
+      end)
+      .to_error("cannot resolve")
+  end)
 end)
 
 nx.test.describe("nxvim-workspaces.actions + the built-in nx.lsp verbs", function()
@@ -123,6 +147,26 @@ nx.test.describe("nxvim-workspaces.actions.run", function()
     nx.test.expect(mock.calls[2].m).to_be("asyncf-done")
     nx.test.expect(mock.calls[3].m).to_be("sync")
     nx.test.expect(mock.calls[3].p).to_be("b")
+  end)
+
+  -- Resolution is pure lookup, so it happens for the WHOLE chain up front: a typo in the
+  -- last action must not leave the earlier ones half-applied (the same validate-before-
+  -- you-touch-anything discipline templates.add uses before writing).
+  nx.test.it("resolves every action before running any (a bad one runs nothing)", function()
+    local mock = make_mock()
+    package.loaded["nxvim_ws_mock"] = mock
+    local caught
+    nx.await(actions
+      .run({
+        { require = "nxvim_ws_mock", method = "sync", params = "first" },
+        { require = "nxvim_ws_mock", method = "no_such_method" },
+      })
+      :catch(function(e)
+        caught = e
+        return true
+      end))
+    nx.test.expect(caught).never.to_be_nil()
+    nx.test.expect(#mock.calls).to_be(0) -- the good first action never ran
   end)
 
   nx.test.it("rejects when an action throws", function()

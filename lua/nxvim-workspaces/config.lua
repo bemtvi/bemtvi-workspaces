@@ -182,8 +182,19 @@ function M.normalize(raw)
     if type(raw.languages) ~= "table" then
       fail("`languages` must be an object")
     end
+    -- Two blocks claiming one filetype is a config mistake with a silent outcome (both
+    -- wire that filetype, and the second block's save map wins on the shared buffer), so
+    -- it is worth a warning — but not a hard failure, since it still has a defined result.
+    local claimed = {}
     for key, block in pairs(raw.languages) do
-      languages[#languages + 1] = check_language(key, block, warn)
+      local lang = check_language(key, block, warn)
+      for _, ft in ipairs(lang.filetypes) do
+        if claimed[ft] then
+          warn("filetype '" .. ft .. "' is claimed by more than one language block")
+        end
+        claimed[ft] = true
+      end
+      languages[#languages + 1] = lang
     end
   end
 

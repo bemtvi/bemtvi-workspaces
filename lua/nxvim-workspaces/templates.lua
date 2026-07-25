@@ -7,6 +7,11 @@
 -- validates the result, and writes it back — the JSON twin of the neovim setup that
 -- copies a per-workspace rc from a template dir.
 --
+-- MERGE SEMANTICS. Objects merge recursively (a template can add one language without
+-- dropping the others); a LIST replaces its counterpart wholesale (a template's
+-- `save_actions` is the save chain, not a splice over the old one). See `merge` below
+-- for why that rules out `vim.tbl_deep_extend`.
+--
 -- REMOTE SESSIONS. Two filesystems are in play, and they route to different sides:
 --   * the TEMPLATES live in the config dir (`vim.fn.stdpath("config")`), which is always
 --     LOCAL to the editor process — in a `--connect-daemon` session it is the client's
@@ -28,22 +33,24 @@ function M.dir()
   return (cfg and cfg ~= "" and cfg or ".") .. "/workspace-templates"
 end
 
--- The project's config path: `<workspace-root>/.nxvim/config.json` (the cwd is only a
--- defensive fallback — the :Workspace* commands run inside a --workspace session).
+-- The project's config path: `<workspace-root>/.nxvim/config.json`, absolute (the cwd is
+-- only a defensive fallback — the :Workspace* commands run inside a --workspace session).
 function M.config_path()
   local root = nx.workspace.dir() or vim.fn.getcwd()
-  return root .. "/.nxvim/config.json"
+  return vim.fn.fnamemodify(root .. "/.nxvim/config.json", ":p")
 end
 
 -- List available template names (basename without the `.json`), sorted. Returns a
--- promise; a missing/unreadable templates dir resolves to an empty list.
+-- promise. A missing templates dir is the ordinary "you have no templates yet" case and
+-- resolves to an empty list; any OTHER failure (an unreadable dir) REJECTS — reporting
+-- it as "no templates" would hide a real problem behind a plausible-looking answer.
 function M.list(dir)
   dir = dir or M.dir()
   return nx.async(function()
-    local ok, entries = pcall(nx.await, nx.fs_local.readdir(dir))
-    if not ok then
+    if not nx.await(nx.fs_local.exists(dir)) then
       return {}
     end
+    local entries = nx.await(nx.fs_local.readdir(dir))
     local names = {}
     for _, e in ipairs(entries) do
       if e.type ~= "directory" then
@@ -77,6 +84,32 @@ local function dirname(path)
   return path:match("^(.*)/[^/]+$")
 end
 
+-- Deep-merge `src` over `dst` (template wins), returning a fresh table.
+--
+-- Objects merge recursively so a template can add one language without dropping the
+-- others; a LIST replaces its counterpart WHOLESALE. That last part is why this isn't
+-- `vim.tbl_deep_extend`, which recurses into lists too and therefore splices by index:
+-- a template's one-entry `save_actions` over an existing three-entry one would leave
+-- entries 2 and 3 of the OLD chain behind, producing a save chain nobody wrote. A list
+-- in this schema is an ordered whole, so "the template's list" means exactly that.
+local function merge(dst, src)
+  if type(src) ~= "table" or type(dst) ~= "table" then
+    return src
+  end
+  if config_mod.is_array(src) or config_mod.is_array(dst) then
+    return src
+  end
+  local out = {}
+  for k, v in pairs(dst) do
+    out[k] = v
+  end
+  for k, v in pairs(src) do
+    out[k] = merge(out[k], v)
+  end
+  return out
+end
+M.merge = merge
+
 -- Merge template `name` into the project's `.nxvim/config.json` (creating it when
 -- absent), validate the merged result (fail loud BEFORE writing anything), and write it
 -- back pretty-printed. `opts.dir` overrides the templates dir, `opts.config_path` the
@@ -97,8 +130,8 @@ function M.add(name, opts)
       existing = raw
     end
 
-    -- Template values win; lists (save_actions) replace wholesale under deep-extend.
-    local merged = vim.tbl_deep_extend("force", existing, template)
+    -- Template values win; objects merge recursively, lists replace wholesale.
+    local merged = merge(existing, template)
     -- Validate the merged shape now, so a bad template/merge never lands on disk.
     config_mod.normalize(merged)
 

@@ -20,8 +20,13 @@
 --
 -- What happens:
 --   1. The plugin is put on the runtimepath below; its `plugin/` entry auto-runs
---      `setup({})`, which — in this --workspace session — reads `./.nxvim/config.json`
---      and applies it.
+--      `setup({})`, which — in this --workspace session — reads `./.nxvim/config.json`.
+--   1a. FIRST LAUNCH ONLY: a centered "trust this config?" dialog appears, because
+--      applying a config runs code (language servers, save actions, the setup hook).
+--        TYPE: `y` to trust and apply. Anything else — `n`, `<Esc>`, even `<CR>` —
+--        declines, and none of the steps below happen (`:WorkspaceTrust` applies it
+--      later). The answer is remembered per config path + content hash, so it asks
+--      once; editing `.nxvim/config.json` changes the hash and it asks again.
 --   2. GLOBAL settings apply at once (see `.nxvim/config.json` -> "settings"):
 --        SEE: a number column, relative numbers, and the current line highlighted.
 --   3. sample.lua is a `lua` file, so the "lua" language block fires:
@@ -38,7 +43,10 @@
 --   :WorkspaceConfig            open `.nxvim/config.json` for editing
 --   :WorkspaceTemplate python   merge that template into `.nxvim/config.json`, then open
 --                               it (tab-completes the template names)
---   :WorkspaceReload            re-apply the config from disk after editing
+--   :WorkspaceReload            re-apply the config from disk after editing (it reports
+--                               "reloaded config" only when it really applied)
+--   :WorkspaceTrust             trust + apply — use it if you declined the dialog
+--   :WorkspaceUntrust           forget the answer, so the dialog returns next launch
 --
 -- Nothing here is Lua config for the settings themselves — edit `.nxvim/config.json`
 -- and relaunch (or `:WorkspaceReload`) to change the LSPs, save actions, or options.

@@ -86,6 +86,54 @@ nx.test.describe("nxvim-workspaces.trust", function()
     nx.test.expect(trust.file(CFG, dir)).never.to_be(trust.file("/other/.nxvim/config.json", dir))
   end)
 
+  -- The decision is keyed by the config's ABSOLUTE path, so the same config reached
+  -- through a relative path is the same record — not a second, unprompted one.
+  nx.test.it("keys the decision to the absolute config path", function()
+    local dir = nx.test.tempdir()
+    local rel = "wsrel/.nxvim/config.json"
+    local abs = vim.fn.fnamemodify(rel, ":p")
+    nx.test.expect(trust.file(rel, dir)).to_be(trust.file(abs, dir))
+
+    local calls = with_answer(true, function()
+      nx.await(trust.ensure(rel, TEXT, dir))
+      nx.await(trust.ensure(abs, TEXT, dir)) -- same config -> remembered, no re-prompt
+    end)
+    nx.test.expect(calls).to_be(1)
+
+    local rec = nx.json.decode(nx.await(nx.fs_local.read_text(trust.file(abs, dir))))
+    nx.test.expect(rec.path).to_be(abs) -- the record stores the absolute path
+  end)
+
+  -- The store holds security decisions, so the directory it lives in is private.
+  nx.test.it("creates the trust dir private (0700)", function()
+    local dir = nx.test.tempdir() .. "/trust"
+    with_answer(true, function()
+      nx.await(trust.ensure(CFG, TEXT, dir))
+    end)
+    local st = nx.await(nx.fs.stat(dir))
+    nx.test.expect(string.format("%o", st.mode % 512)).to_be("700")
+  end)
+
+  nx.test.it("leaves no temp file behind when the atomic rename fails", function()
+    local dir = nx.test.tempdir()
+    local orename = nx.fs_local.rename
+    nx.fs_local.rename = function()
+      return nx.promise.new(function(_, reject)
+        reject({ message = "rename failed" })
+      end)
+    end
+    local caught
+    nx.await(trust.remember(CFG, TEXT, true, dir):catch(function(e)
+      caught = e
+      return true
+    end))
+    nx.fs_local.rename = orename
+    nx.test.expect(caught).never.to_be_nil() -- the failure surfaces...
+    for _, e in ipairs(nx.await(nx.fs_local.readdir(dir))) do
+      nx.test.expect(e.name:match("%.tmp$")).to_be_nil() -- ...and leaves no litter
+    end
+  end)
+
   nx.test.it("confirm() is a real floating dialog, answered by y / n", function(t)
     -- Drive the actual grabbing-float dialog (not the stub): `y` trusts.
     local allow = "PENDING"

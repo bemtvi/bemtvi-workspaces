@@ -142,16 +142,22 @@ which invokes `<module-or-global>.<method>(<params>)`. `require` resolves either
 Lua module (`"conform"`) **or** a dotted global path — so the built-in editor verbs,
 which live on global tables, work directly:
 
-| `require`       | `method`                   | effect                                      |
-| --------------- | -------------------------- | ------------------------------------------- |
-| `"nx.lsp"`      | `"format"`                 | LSP format the buffer                       |
-| `"nx.lsp"`      | `"code_action"`            | run a code action — see the filter below    |
-| `"nx.lsp"`      | `"rename"`                 | rename the symbol under the cursor          |
-| `"vim.lsp.buf"` | `"format"` / `code_action` | the neovim-shaped aliases of the above      |
-| `"conform"`     | `"format"`                 | a plugin module's method                    |
+| `require`       | `method`                     | effect                                   |
+| --------------- | ---------------------------- | ---------------------------------------- |
+| `"nx.lsp"`      | `"format"`                   | LSP format the buffer                    |
+| `"nx.lsp"`      | `"code_action"`              | run a code action — see the filter below |
+| `"nx.lsp"`      | `"rename"`                   | rename the symbol under the cursor       |
+| `"vim.lsp.buf"` | `"format"` / `"code_action"` | the neovim-shaped aliases of the above   |
+| `"conform"`     | `"format"`                   | a plugin module's method                 |
 
 A bad action fails **loud** — a module/global that can't be resolved, or a method that
-isn't a function, raises with the offending name (never a silent no-op).
+isn't a function, raises with the offending name (never a silent no-op). Note the built-in
+verbs live on `nx.lsp` itself: there is no `nx.lsp.buf`, and a config naming it fails loud
+(the neovim-shaped spelling is `vim.lsp.buf`). `nx.lsp.format` takes no arguments, so a
+`params` on it is inert; `code_action` is the verb that reads `params` (below).
+
+The whole chain is **resolved before any of it runs**, so a typo in the last action fails
+the save without half-applying the ones before it.
 
 **Picking one code action (no menu on save).** A bare `code_action` is interactive: it
 opens the chooser and the chain waits for your pick. `params` narrows it to the action
@@ -185,10 +191,15 @@ loud rather than being silently dropped.
 ### `settings`
 
 The top-level `settings` block is applied **once at start**, globally, through `vim.o`
-(which routes each option to its proper scope). A `settings` block *inside* a language
-is applied **buffer-local** when a file of that type opens. Any vim option name works;
-an unmodeled name warns-but-stores (the lenient compat surface), it never aborts the
-load.
+(which routes each option to its proper scope). A `settings` block *inside* a language is
+applied **on that language's buffers** — each option routed to the scope its name implies,
+with the matching buffer installed as the current context, so a buffer-local name
+(`tabstop`, `shiftwidth`, `expandtab`) lands on that buffer even when it isn't the focused
+one. A **window**-scoped name (`number`, `wrap`, `colorcolumn`) has no buffer to land on,
+so it applies to the current window — put those in the top-level `settings` instead.
+
+Any vim option name works; an unmodeled name warns-but-stores (the lenient compat
+surface), it never aborts the load.
 
 ### `setup` — an async hook, awaited first
 
@@ -209,33 +220,46 @@ failing hook is reported loud and **aborts** the rest of the apply.
 
 ## Templates and commands
 
-`setup()` registers three commands for editing the project config from inside the editor:
+`setup()` registers five commands for editing the project config from inside the editor:
 
-| command                     | what it does                                                          |
-| --------------------------- | -------------------------------------------------------------------- |
-| `:WorkspaceConfig`          | open `.nxvim/config.json` (creating an empty skeleton if absent)     |
-| `:WorkspaceTemplate {name}` | merge a template into `.nxvim/config.json`, then open it              |
-| `:WorkspaceReload`          | re-apply the config from disk (after editing, without a restart)     |
-| `:WorkspaceTrust`           | trust + apply the config (e.g. after declining the prompt)           |
-| `:WorkspaceUntrust`         | forget the trust decision (re-prompts on the next load)              |
+| command                     | what it does                                                     |
+| --------------------------- | ---------------------------------------------------------------- |
+| `:WorkspaceConfig`          | open `.nxvim/config.json` (creating an empty skeleton if absent) |
+| `:WorkspaceTemplate {name}` | merge a template into `.nxvim/config.json`, then open it         |
+| `:WorkspaceReload`          | re-apply the config from disk (after editing, without a restart) |
+| `:WorkspaceTrust`           | trust + apply the config (e.g. after declining the prompt)       |
+| `:WorkspaceUntrust`         | forget the trust decision (re-prompts on the next load)          |
+
+`:WorkspaceReload` reports what it actually did — it says "reloaded" only when the config
+was applied, and otherwise leaves the missing / untrusted / broken message standing. A
+re-apply is idempotent: it clears the autocmds and the save maps the previous apply
+installed, so keys never stack and a changed `save_key` doesn't strand the old binding.
 
 **Templates** are ready-made JSON configs kept in your config dir under
 `workspace-templates/<name>.json` (each a partial or full `.nxvim/config.json`).
-`:WorkspaceTemplate <name>` tab-completes the available names, deep-merges the chosen one
-into the project config (template values win, existing siblings are kept), validates the
-result, and writes it back — the JSON twin of copying a per-workspace rc from a template.
-Override the templates dir with `setup({ templates_dir = "…" })`.
+`:WorkspaceTemplate <name>` tab-completes the available names, merges the chosen one into
+the project config, validates the result, and writes it back — the JSON twin of copying a
+per-workspace rc from a template. Override the templates dir with
+`setup({ templates_dir = "…" })`.
+
+The merge is **deep for objects, wholesale for lists**: a template can add a `python`
+block without disturbing your `lua` one, and its `save_actions` **replace** the existing
+chain rather than being spliced over it entry by entry. Where both sides set the same
+scalar, the template wins.
 
 ## Behavior notes
 
 - **No config, no problem.** A project without `.nxvim/config.json` is a silent no-op.
 - **A broken config fails loud.** Invalid JSON, or a shape the plugin can't honor (a
   non-object `languages`, a `save_action` missing `require`/`method`, …) is reported —
-  never silently skipped. Unknown keys are tolerated with a warning (forward-compat).
-- **Files open at launch are covered.** The config loads asynchronously, after your
-  launch file's `FileType` has already fired; the plugin still applies the matching
-  language's settings and `<C-s>` map to that buffer (the same current-buffer catch-up
-  `nx.lsp.enable` does).
+  never silently skipped. Unknown keys are tolerated with a warning (forward-compat), as
+  is a filetype claimed by two language blocks (they both wire it; the later block's
+  `<C-s>` map wins on the shared buffer).
+- **Files open at launch are covered.** The config loads asynchronously, after every
+  already-open file's `FileType` has fired; the plugin catches up by walking the whole
+  buffer list and applying each language's settings and `<C-s>` map to every loaded
+  buffer of that type. That matters in a `--workspace` session, which restores a full
+  layout — several buffers are typically open before the config lands, not just one.
 - **`.nxvim/config.json` runs code — so it is trust-gated.** It spawns language-server
   commands, runs save actions, and calls the `setup` hook, so the **first** apply of a
   given config prompts (a floating **Trust and apply / Don't trust** popup). The answer is remembered in a local
@@ -274,11 +298,14 @@ No is the default and trusting is always a deliberate `y`.
   declined config is also remembered (it won't nag every launch).
 - **The store is local, one file per config, written atomically.** Each config's decision
   is its own file under `stdpath("state")/nxvim-workspaces/trust/` (named by a hash of the
-  config's path), so unrelated workspaces never contend on a shared file; each write goes
-  to a temp file and is renamed into place (atomic on a POSIX fs), so a concurrent reader
-  never sees a half-written record. It is written to the **client's** disk through
-  `nx.fs_local`, so a remote daemon can never pre-trust its own config. The gate runs
-  **before** the `setup` hook, so nothing from an untrusted config executes.
+  config's **absolute** path — so the same config reached through a relative path is the
+  same record, not a second unprompted one), so unrelated workspaces never contend on a
+  shared file; each write goes to a temp file and is renamed into place (atomic on a POSIX
+  fs), so a concurrent reader never sees a half-written record, and a failed write takes
+  its temp file with it. The directory is created **0700** — these are security decisions,
+  not shared state. It is written to the **client's** disk through `nx.fs_local`, so a
+  remote daemon can never pre-trust its own config. The gate runs **before** the `setup`
+  hook, so nothing from an untrusted config executes.
 - `:WorkspaceTrust` trusts + applies the current config (use it after declining, or to
   approve a changed one non-interactively); `:WorkspaceUntrust` forgets the decision.
 - To opt out of prompting entirely (trust your own machine), pass `setup({ trust = false })`
@@ -293,8 +320,9 @@ cd examples
 NXVIM_CONFIG=. nxvim --workspace . sample.lua
 ```
 
-`examples/.nxvim/config.json` enables `lua_ls`/`ruff`, sets global number columns, and
-gives Lua files a 2-space, format-on-`<C-s>` setup — all as data.
+`examples/.nxvim/config.json` enables `lua_ls`/`pyright`/`ruff`, sets global number
+columns, and gives Lua files a 2-space, format-on-`<C-s>` setup — all as data. The first
+launch shows the trust dialog: press `y` to apply it.
 
 ## Tests
 

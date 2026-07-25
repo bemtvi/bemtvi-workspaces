@@ -21,13 +21,40 @@ nx.test.describe("nxvim-workspaces.templates", function()
     nx.test.expect(#nx.await(templates.list(nx.test.tempdir() .. "/nope"))).to_be(0)
   end)
 
+  -- "No templates dir" is the one benign case. A dir that EXISTS but can't be read is a
+  -- real failure and must surface — reporting it as "no templates" would hide it.
+  nx.test.it("surfaces a real readdir failure instead of reporting no templates", function()
+    local oexists, oreaddir = nx.fs_local.exists, nx.fs_local.readdir
+    nx.fs_local.exists = function()
+      return nx.promise.resolve(true)
+    end
+    nx.fs_local.readdir = function()
+      return nx.promise.new(function(_, reject)
+        reject({ message = "EACCES" })
+      end)
+    end
+    local caught
+    nx.await(templates.list("/anywhere"):catch(function(e)
+      caught = e
+      return {}
+    end))
+    nx.fs_local.exists, nx.fs_local.readdir = oexists, oreaddir
+    nx.test.expect(caught).never.to_be_nil()
+  end)
+
   nx.test.it("reads templates via the LOCAL seam (so they work in remote sessions)", function()
-    -- The config dir is always local to the editor; nx.fs would cross to the daemon.
-    local ofs, ofsl = nx.fs.readdir, nx.fs_local.readdir
-    nx.fs.readdir = function()
+    -- The config dir is always local to the editor; nx.fs would cross to the daemon, so
+    -- EVERY op the listing makes (exists + readdir) must ride nx.fs_local.
+    local ofs_exists, ofs_readdir = nx.fs.exists, nx.fs.readdir
+    local ofsl_exists, ofsl_readdir = nx.fs_local.exists, nx.fs_local.readdir
+    local function remote()
       return nx.promise.new(function(_, reject)
         reject({ message = "templates must not use the remote nx.fs seam" })
       end)
+    end
+    nx.fs.exists, nx.fs.readdir = remote, remote
+    nx.fs_local.exists = function()
+      return nx.promise.resolve(true)
     end
     nx.fs_local.readdir = function()
       return nx.promise.resolve({ { name = "only.json", type = "file" } })
@@ -35,7 +62,8 @@ nx.test.describe("nxvim-workspaces.templates", function()
     local ok, names = pcall(function()
       return nx.await(templates.list("/anywhere"))
     end)
-    nx.fs.readdir, nx.fs_local.readdir = ofs, ofsl
+    nx.fs.exists, nx.fs.readdir = ofs_exists, ofs_readdir
+    nx.fs_local.exists, nx.fs_local.readdir = ofsl_exists, ofsl_readdir
     nx.test.expect(ok).to_be_truthy()
     nx.test.expect(names).to_equal({ "only" })
   end)
@@ -83,6 +111,34 @@ nx.test.describe("nxvim-workspaces.templates", function()
     nx.test.expect(w.settings.number).to_be(true) -- added
     nx.test.expect(w.languages.python).never.to_be_nil() -- kept
     nx.test.expect(w.languages.lua.lsps.lua_ls).never.to_be_nil() -- added
+  end)
+
+  -- A deep merge that recursed into lists would splice the template's save_actions over
+  -- the existing ones BY INDEX, leaving the old chain's tail behind — a save chain
+  -- nobody wrote. A list-valued key replaces wholesale.
+  nx.test.it("a template's save_actions replaces the list (no index-merge leftovers)", function()
+    local tdir = nx.test.tempdir()
+    write(tdir .. "/one.json", {
+      languages = { python = { save_actions = { { require = "nx", method = "cmd" } } } },
+    })
+    local cpath = nx.test.tempdir() .. "/config.json"
+    write(cpath, {
+      languages = {
+        python = {
+          save_actions = {
+            { require = "old_a", method = "x" },
+            { require = "old_b", method = "y" },
+            { require = "old_c", method = "z" },
+          },
+        },
+      },
+    })
+
+    nx.await(templates.add("one", { dir = tdir, config_path = cpath }))
+
+    local w = nx.json.decode(nx.await(nx.fs.read_text(cpath)))
+    nx.test.expect(#w.languages.python.save_actions).to_be(1)
+    nx.test.expect(w.languages.python.save_actions[1].require).to_be("nx")
   end)
 
   nx.test.it(
