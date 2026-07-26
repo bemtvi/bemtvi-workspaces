@@ -6,11 +6,13 @@
 --                      language's buffer-local `settings` and installs the `<C-s>`
 --                      save-actions keymap on the matching buffer.
 --
--- Two things make it correct when it runs LATE, which it always does — the config is
--- read async, so every file already open has had its `FileType` fire:
+-- Two things make it correct when it runs LATE, which it always does — the config is read
+-- async, so a file already open may well have had its `FileType` fire and settle:
 --   * a CATCH-UP pass over the whole buffer list, so each already-loaded buffer of a
 --     language gets its settings + map (a --workspace session restores a full layout,
---     so this is the common case, not the edge one);
+--     so this is the common case, not the edge one). nxvim's own late-subscriber replay
+--     covers the buffers whose read sequence is still parked when we register; this pass
+--     covers the ones already past it;
 --   * per-buffer targeting via `nx.buf.call` — both the autocmd and the catch-up hand
 --     us a buffer that need not be the current one, and `vim.o` routes to whatever is
 --     current, so the target buffer is installed as the context first.
@@ -143,11 +145,19 @@ function M.apply(config, opts)
         end,
       })
 
-      -- The config loads async, AFTER every already-open file's FileType has fired, so
-      -- the autocmd we just created won't catch them. Apply on the spot to each loaded
-      -- buffer that already matches (mirrors `nx.lsp.enable`'s current-buffer dispatch,
-      -- but across the whole buffer list — a --workspace session restores a full layout,
-      -- so several buffers of a language are typically open before the config lands).
+      -- The config loads async, so the autocmd we just registered is LATE for every file
+      -- already open. Apply on the spot to each loaded buffer that already matches
+      -- (mirrors `nx.lsp.enable`'s current-buffer dispatch, but across the whole buffer
+      -- list — a --workspace session restores a full layout, so several buffers of a
+      -- language are typically open before the config lands).
+      --
+      -- nxvim does cover part of this itself: a `FileType` still inside its settle window
+      -- when we register re-dispatches to us, so a handler that shows up while some other
+      -- async handler is running does get the event. But that only helps when the read
+      -- sequence happens to still be parked; a buffer whose FileType settled a second ago
+      -- — or which was restored before the config was even sourced — is past it. This pass
+      -- covers those, and double-applying is harmless: `on_buf` only sets options and
+      -- re-installs a map it already tracks.
       local wanted = {}
       for _, ft in ipairs(lang.filetypes) do
         wanted[ft] = true
