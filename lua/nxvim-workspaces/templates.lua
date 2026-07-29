@@ -9,8 +9,8 @@
 --
 -- MERGE SEMANTICS. Objects merge recursively (a template can add one language without
 -- dropping the others); a LIST replaces its counterpart wholesale (a template's
--- `save_actions` is the save chain, not a splice over the old one). See `merge` below
--- for why that rules out `vim.tbl_deep_extend`.
+-- `save_actions` is the save chain, not a splice over the old one) — exactly
+-- `nx.tbl.deep_extend("force", …)`, which `merge` below is a named alias for.
 --
 -- REMOTE SESSIONS. Two filesystems are in play, and they route to different sides:
 --   * the TEMPLATES live in the config dir (`vim.fn.stdpath("config")`), which is always
@@ -87,26 +87,16 @@ end
 -- Deep-merge `src` over `dst` (template wins), returning a fresh table.
 --
 -- Objects merge recursively so a template can add one language without dropping the
--- others; a LIST replaces its counterpart WHOLESALE. That last part is why this isn't
--- `vim.tbl_deep_extend`, which recurses into lists too and therefore splices by index:
--- a template's one-entry `save_actions` over an existing three-entry one would leave
--- entries 2 and 3 of the OLD chain behind, producing a save chain nobody wrote. A list
--- in this schema is an ordered whole, so "the template's list" means exactly that.
+-- others; a LIST replaces its counterpart WHOLESALE — a template's one-entry
+-- `save_actions` over an existing three-entry one is that one entry, not a splice
+-- leaving entries 2 and 3 of the OLD chain behind. A list in this schema is an ordered
+-- whole, so "the template's list" means exactly that. Both halves are
+-- `nx.tbl.deep_extend("force", …)`'s rule, so this is a named alias for it.
 local function merge(dst, src)
   if type(src) ~= "table" or type(dst) ~= "table" then
     return src
   end
-  if config_mod.is_array(src) or config_mod.is_array(dst) then
-    return src
-  end
-  local out = {}
-  for k, v in pairs(dst) do
-    out[k] = v
-  end
-  for k, v in pairs(src) do
-    out[k] = merge(out[k], v)
-  end
-  return out
+  return nx.tbl.deep_extend("force", dst, src)
 end
 M.merge = merge
 
