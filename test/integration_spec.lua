@@ -153,6 +153,57 @@ nx.test.describe("nxvim-workspaces end-to-end", function()
     nx.test.expect(nx._user_commands["WorkspaceReload"]).never.to_be_nil()
   end)
 
+  -- :WorkspaceConfig is typically fired from wherever focus happens to be — a file
+  -- tree, a sidebar, any dock. The config must land in the MAIN editing area, never
+  -- replace the dock's own content (which `:edit` would do).
+  nx.test.it(":WorkspaceConfig opens the config in the main layer, not the dock", function(t)
+    local dir = nx.test.tempdir()
+    local path = write_config(dir, { settings = {} })
+    ws._register_commands({ path = path, trust = false })
+
+    -- Open + focus a left dock, the way a tree plugin's keymap would.
+    t:exec(function()
+      nx.dock.open({ side = "left", size = 30 })
+    end)
+    t:feed("", { settle = 1 })
+    local dock_win = nx.win.current()
+    local dock_buf = nx.win.buf(dock_win)
+
+    t:cmd("WorkspaceConfig")
+    t:wait_for(function()
+      return nx.buf.name(nx.buf.current()) == path
+    end, { message = "config.json never opened" })
+
+    -- The config is up, but NOT inside the dock: focus crossed to the main layer and
+    -- the dock still shows its own buffer.
+    nx.test.expect(nx.win.current()).never.to_be(dock_win)
+    nx.test.expect(nx.win.buf(dock_win)).to_be(dock_buf)
+  end)
+
+  -- Same for the template merge, which opens the merged config when it lands.
+  nx.test.it(":WorkspaceTemplate opens the merged config in the main layer", function(t)
+    local dir = nx.test.tempdir()
+    local tpl_dir = nx.test.tempdir()
+    local path = dir .. "/config.json"
+    nx.await(nx.fs.write(tpl_dir .. "/rusty.json", nx.json.encode({ settings = { tabstop = 3 } })))
+    ws._register_commands({ path = path, templates_dir = tpl_dir, trust = false })
+
+    t:exec(function()
+      nx.dock.open({ side = "left", size = 30 })
+    end)
+    t:feed("", { settle = 1 })
+    local dock_win = nx.win.current()
+    local dock_buf = nx.win.buf(dock_win)
+
+    t:cmd("WorkspaceTemplate rusty")
+    t:wait_for(function()
+      return nx.buf.name(nx.buf.current()) == path
+    end, { message = "merged config never opened" })
+
+    nx.test.expect(nx.win.current()).never.to_be(dock_win)
+    nx.test.expect(nx.win.buf(dock_win)).to_be(dock_buf)
+  end)
+
   nx.test.it("M.parse fails loud on a broken shape", function()
     nx.test
       .expect(function()

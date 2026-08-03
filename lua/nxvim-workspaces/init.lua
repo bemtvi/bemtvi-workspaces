@@ -196,8 +196,10 @@ end
 -- Open the project's config, creating an empty skeleton first when it doesn't exist.
 local function edit_config(opts)
   local path = config_path(opts)
+  -- `where = "main"` so a :WorkspaceConfig fired from a dock / sidebar (a tree, a
+  -- picker's window) lands in the main editing area rather than inside that dock.
   local function open()
-    nx.cmd("edit " .. vim.fn.fnameescape(path))
+    nx.open(path, { where = "main" })
   end
   nx.fs
     .exists(path)
@@ -236,7 +238,7 @@ function M._register_commands(opts)
     templates
       .add(name, { dir = opts.templates_dir, config_path = opts.path })
       :next(function(path)
-        nx.cmd("edit " .. vim.fn.fnameescape(path))
+        nx.open(path, { where = "main" })
         nx.notify("nxvim-workspaces: merged template '" .. name .. "'", nx.log.levels.INFO)
       end)
       :catch(function(err)
