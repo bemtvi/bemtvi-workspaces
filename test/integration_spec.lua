@@ -96,6 +96,82 @@ nx.test.describe("nxvim-workspaces end-to-end", function()
     nx.test.expect(vim.o.tabstop).to_be(8) -- apply ran after the hook
   end)
 
+  -- Several hooks, run STRICTLY in turn: each one's promise settles before the next
+  -- starts, so a hook may consume what the one before it produced. If they were merely
+  -- kicked off in a loop, hook 2 would run while hook 1's async work was still pending
+  -- and the recorded order would interleave — which is what `order` catches.
+  nx.test.it("runs an ARRAY of `setup` hooks in order, awaiting each", function()
+    local dir = nx.test.tempdir()
+    local order = {}
+    -- Each hook resolves only on a LATER tick, so "started" and "finished" can interleave
+    -- unless the runner really awaits between them.
+    local function hook(name)
+      return function()
+        order[#order + 1] = name .. ":start"
+        return nx.promise.new(function(resolve)
+          nx.on_next_tick(function()
+            order[#order + 1] = name .. ":done"
+            resolve(true)
+          end)
+        end)
+      end
+    end
+    package.loaded["ws_chain_mock"] = { one = hook("one"), two = hook("two") }
+    -- A hook may also be a plain synchronous function; it must take its turn too.
+    package.loaded["ws_chain_mock"].three = function()
+      order[#order + 1] = "three:sync"
+    end
+
+    local path = write_config(dir, {
+      setup = {
+        { require = "ws_chain_mock", method = "one" },
+        { require = "ws_chain_mock", method = "two" },
+        { require = "ws_chain_mock", method = "three" },
+      },
+      settings = { tabstop = 7 },
+    })
+
+    nx.await(ws.setup({ path = path, trust = false }))
+
+    nx.test
+      .expect(order)
+      .to_equal({ "one:start", "one:done", "two:start", "two:done", "three:sync" })
+    nx.test.expect(vim.o.tabstop).to_be(7) -- and the apply waited for all of them
+  end)
+
+  -- A hook that fails aborts the apply: the hooks after it do not run, and the config's
+  -- settings are never applied over a workspace whose preparation failed.
+  nx.test.it("a failing `setup` hook stops the chain and the apply", function()
+    local dir = nx.test.tempdir()
+    local ran = {}
+    package.loaded["ws_fail_mock"] = {
+      boom = function()
+        ran[#ran + 1] = "boom"
+        error("hook exploded", 0)
+      end,
+      after = function()
+        ran[#ran + 1] = "after"
+      end,
+    }
+    vim.o.tabstop = 5
+    local path = write_config(dir, {
+      setup = {
+        { require = "ws_fail_mock", method = "boom" },
+        { require = "ws_fail_mock", method = "after" },
+      },
+      settings = { tabstop = 9 },
+    })
+
+    local onotify = nx.notify
+    nx.notify = function() end
+    local status = nx.await(ws.setup({ path = path, trust = false }))
+    nx.notify = onotify
+
+    nx.test.expect(status).to_be("error")
+    nx.test.expect(ran).to_equal({ "boom" }) -- the second hook never started
+    nx.test.expect(vim.o.tabstop).to_be(5) -- and nothing was applied
+  end)
+
   nx.test.it("trust gate: applies only when the prompt is accepted", function()
     local dir = nx.test.tempdir()
     local path = write_config(dir, { settings = { tabstop = 7 } })

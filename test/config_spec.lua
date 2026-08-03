@@ -85,22 +85,67 @@ nx.test.describe("nxvim-workspaces.config.normalize", function()
     nx.test.expect(n.warnings[1]).to_match("python")
   end)
 
-  nx.test.it("normalizes a top-level `setup` hook", function()
+  -- One hook or many: both spellings normalize to a LIST, so everything downstream has a
+  -- single shape to run (and `setup` reads like `save_actions`).
+  nx.test.it("normalizes a single top-level `setup` hook into a one-entry list", function()
     local n = config.normalize({
       setup = { require = "mymod", method = "prepare", params = { a = 1 } },
       settings = { number = true },
     })
-    nx.test.expect(n.setup.require).to_be("mymod")
-    nx.test.expect(n.setup.method).to_be("prepare")
-    nx.test.expect(n.setup.params.a).to_be(1)
+    nx.test.expect(#n.setup).to_be(1)
+    nx.test.expect(n.setup[1].require).to_be("mymod")
+    nx.test.expect(n.setup[1].method).to_be("prepare")
+    nx.test.expect(n.setup[1].params.a).to_be(1)
     nx.test.expect(#n.warnings).to_be(0)
   end)
+
+  nx.test.it("normalizes an ARRAY of `setup` hooks, order preserved", function()
+    local n = config.normalize({
+      setup = {
+        { require = "first", method = "a" },
+        { require = "second", method = "b", params = { x = 2 } },
+        { require = "third", method = "c" },
+      },
+    })
+    nx.test.expect(#n.setup).to_be(3)
+    nx.test.expect(n.setup[1].require).to_be("first")
+    nx.test.expect(n.setup[2].require).to_be("second")
+    nx.test.expect(n.setup[2].params.x).to_be(2)
+    nx.test.expect(n.setup[3].require).to_be("third")
+    nx.test.expect(#n.warnings).to_be(0)
+  end)
+
+  nx.test.it("an absent or empty `setup` is no hooks, not a broken one", function()
+    nx.test.expect(#config.normalize({}).setup).to_be(0)
+    nx.test.expect(#config.normalize({ setup = {} }).setup).to_be(0)
+  end)
+
   nx.test.it("fails loud when `setup` lacks a method", function()
     nx.test
       .expect(function()
         config.normalize({ setup = { require = "x" } })
       end)
       .to_error("method")
+  end)
+
+  -- A bad entry in an array has to say WHICH entry, or a four-hook config sends you
+  -- reading all four.
+  nx.test.it("fails loud, naming the index, on a bad entry in a `setup` array", function()
+    nx.test
+      .expect(function()
+        config.normalize({
+          setup = { { require = "ok", method = "a" }, { require = "oops" } },
+        })
+      end)
+      .to_error("setup`[2]")
+  end)
+
+  nx.test.it("fails loud when `setup` is not an object or array", function()
+    nx.test
+      .expect(function()
+        config.normalize({ setup = "my.module" })
+      end)
+      .to_error("setup")
   end)
 
   nx.test.it("fails loud on a non-object root", function()

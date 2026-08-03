@@ -103,7 +103,9 @@ nx.plugins({
     "relativenumber": true
   },
 
-  "setup": { "require": "my.workspace", "method": "prepare", "params": {} }
+  "setup": [
+    { "require": "my.workspace", "method": "prepare", "params": {} }
+  ]
 }
 ```
 
@@ -220,7 +222,7 @@ applies to the current window — put those in the top-level `settings` instead.
 Any vim option name works; an unmodeled name warns-but-stores (the lenient compat
 surface), it never aborts the load.
 
-## setup hook
+## setup hooks
 
 The optional top-level `setup` is a `{ require, method, params }` call (same resolution as
 a save action) run before anything else in the config is applied. If its method returns a
@@ -232,10 +234,26 @@ the LSPs / settings / save-actions land.
 { "setup": { "require": "my.workspace", "method": "prepare", "params": { "env": "dev" } } }
 ```
 
+Write an array to run several, in order — each awaited before the next starts, so a
+hook can consume what the one before it produced:
+
+```json
+{
+  "setup": [
+    { "require": "my.workspace", "method": "resolve_toolchain" },
+    { "require": "my.workspace", "method": "install_deps", "params": { "env": "dev" } }
+  ]
+}
+```
+
+Both spellings mean the same thing — a single object is a one-entry list. An empty `[]` is
+no hooks.
+
 The referenced Lua lives in your own config dir (anything `require`-able, or a dotted
 global) — the JSON only names it. It is the escape hatch for the bit of logic that cannot
 be plain data, mirroring the per-template `setup()` in a hand-written workspace rc. A
-failing hook is reported loud and aborts the rest of the apply.
+failing hook is reported loud and aborts the rest of the apply: the hooks after it never
+run, and nothing from the config is applied.
 
 # Commands
 
@@ -273,6 +291,21 @@ without disturbing your `lua` one, and its `save_actions` replace the existing c
 rather than being spliced over it entry by entry. Where both sides set the same scalar,
 the template wins. The merged result is validated before anything is written, so a bad
 template never lands on disk.
+
+`setup` is the one key that accumulates instead. A template writes the single hook its
+language needs — the dict form — and each merge appends it, so the project config ends up
+with a list of every template's preparation rather than only the last one merged:
+
+```json
+{ "setup": { "require": "workspace-setup.node", "method": "ensure",
+             "params": ["vscode-langservers-extracted", "eslint-formatter-visualstudio"] } }
+```
+
+Merging that template, and then a python one, leaves the project config with both hooks in
+merge order. Identical entries are elided — same `require`, `method` and `params` all the
+way down — so re-merging a template, or merging two that share a hook, will not run that
+preparation twice. Hooks differing only in their `params` are distinct calls and both
+survive.
 
 # Trust
 

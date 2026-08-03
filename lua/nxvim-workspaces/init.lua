@@ -29,7 +29,9 @@
 --       "javascript,typescript,vue": { "lsps": { "ts_ls": {} } }
 --     },
 --     "settings": { "number": true },      // optional: global, applied once at start
---     "setup": { "require": "mymod", "method": "prepare", "params": {} } // optional
+--     "setup": [                           // optional: one object, or an array of them
+--       { "require": "mymod", "method": "prepare", "params": {} }
+--     ]
 --   }
 --
 -- A comma-joined key ("javascript,typescript,vue") applies to each listed filetype.
@@ -37,7 +39,9 @@
 -- The optional top-level `setup` names a function (a module `require` or a dotted
 -- global) in the user's own config-dir Lua; it is called and, if it returns a promise,
 -- AWAITED before the rest of the config is applied — the escape hatch for logic that
--- can't be plain data (compute paths, install deps, register a custom module).
+-- can't be plain data (compute paths, install deps, register a custom module). Write
+-- ONE such object, or an ARRAY of them to run several IN ORDER, each awaited before the
+-- next starts (so a hook may consume what the one before it produced).
 --
 -- A save action names `<module-or-dotted-global>.<method>(<params>)`. The built-in verbs
 -- live on globals — `nx.lsp` (`format`, `code_action`, `rename`) and their neovim-shaped
@@ -113,14 +117,17 @@ function M.apply(config, opts)
   return config
 end
 
--- Run the optional async `setup` hook and await it before the rest of the config is
--- applied. Returns a promise that fulfils once the hook has settled (immediately when
--- there is no hook). A hook failure rejects, aborting the apply (surfaced loud upstream).
+-- Run the optional async `setup` hooks and await them before the rest of the config is
+-- applied. Returns a promise that fulfils once they have all settled (immediately when
+-- there are none). They run IN ORDER, each awaited before the next starts — `actions.run`
+-- is the same ordered, await-each runner the save chain uses, so a hook that computes a
+-- path can be followed by one that consumes it. A hook failure rejects, aborting the
+-- apply (surfaced loud upstream) without running the hooks after it.
 function M._run_setup(config)
-  if not config.setup then
+  if not config.setup or #config.setup == 0 then
     return nx.promise.resolve(true)
   end
-  return actions.run({ config.setup })
+  return actions.run(config.setup)
 end
 
 -- The in-flight `M.load`, so a second load (a `:WorkspaceReload` on top of the startup

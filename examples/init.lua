@@ -44,10 +44,24 @@
 --        names `ruff` explicitly (`params.name`) because pyright also advertises
 --        formatting, and "whichever comes first" is not a formatter choice.
 --
--- Commands (this config dir ships one template, workspace-templates/python.json):
+--   5. SETUP HOOKS — the escape hatch for what cannot be plain data. Both templates in
+--      workspace-templates/ carry one, as a dict: `{ require, method, params }` naming a
+--      function in this config dir's own Lua (lua/workspace-setup/{node,python}.lua).
+--        TYPE: `:WorkspaceTemplate node` then `:WorkspaceTemplate python`.
+--        SEE: `.nxvim/config.json` now has ONE `"setup"` LIST holding BOTH hooks, in
+--        merge order — hooks accumulate rather than overwrite, so each template keeps the
+--        preparation its own language needs. Merge either template again: the list does
+--        NOT grow, identical entries are elided.
+--        TYPE: `:WorkspaceReload` -> both hooks run IN ORDER, each awaited before the
+--        next (they resolve a tick later, so the two messages arrive in order), and the
+--        rest of the config applies only after both have finished. The example hooks
+--        report what they WOULD ensure rather than installing anything; swap the body
+--        for your package manager.
+--
+-- Commands (this config dir ships two templates under workspace-templates/):
 --   :WorkspaceConfig            open `.nxvim/config.json` for editing
 --   :WorkspaceTemplate python   merge that template into `.nxvim/config.json`, then open
---                               it (tab-completes the template names)
+--                               it (tab-completes: `node`, `python`)
 --   :WorkspaceReload            re-apply the config from disk after editing (it reports
 --                               "reloaded config" only when it really applied)
 --   :WorkspaceTrust             trust + apply — use it if you declined the dialog

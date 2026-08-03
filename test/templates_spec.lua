@@ -141,6 +141,83 @@ nx.test.describe("nxvim-workspaces.templates", function()
     nx.test.expect(w.languages.python.save_actions[1].require).to_be("nx")
   end)
 
+  -- `setup` is the one key that ACCUMULATES. Each template carries the preparation its
+  -- own language needs, so a project built from several templates has to run all of
+  -- them; the plain "template wins" rule would leave it running only the last merged
+  -- one, silently dropping the earlier preparations.
+  nx.test.it("setup hooks from several templates accumulate into one list", function()
+    local tdir = nx.test.tempdir()
+    nx.await(nx.fs.write(
+      tdir .. "/node.json",
+      [[{
+        "setup": { "require": "workspace-setup.node", "method": "ensure",
+                   "params": ["vscode-langservers-extracted"] },
+        "languages": { "javascript": { "lsps": { "eslint": {} } } }
+      }]]
+    ))
+    nx.await(nx.fs.write(
+      tdir .. "/python.json",
+      [[{
+        "setup": { "require": "workspace-setup.python", "method": "venv" },
+        "languages": { "python": { "lsps": { "ruff": {} } } }
+      }]]
+    ))
+    local cpath = nx.test.tempdir() .. "/config.json"
+
+    nx.await(templates.add("node", { dir = tdir, config_path = cpath }))
+    nx.await(templates.add("python", { dir = tdir, config_path = cpath }))
+
+    local w = nx.json.decode(nx.await(nx.fs.read_text(cpath)))
+    -- The merged config always spells `setup` as a list, in merge order.
+    nx.test.expect(#w.setup).to_be(2)
+    nx.test.expect(w.setup[1].require).to_be("workspace-setup.node")
+    nx.test.expect(w.setup[1].method).to_be("ensure")
+    nx.test.expect(w.setup[1].params).to_equal({ "vscode-langservers-extracted" })
+    nx.test.expect(w.setup[2].require).to_be("workspace-setup.python")
+    -- ...and the languages both templates brought are still there.
+    nx.test.expect(w.languages.javascript.lsps.eslint).never.to_be_nil()
+    nx.test.expect(w.languages.python.lsps.ruff).never.to_be_nil()
+  end)
+
+  -- Re-merging a template (or two templates sharing a hook) must not queue the same
+  -- preparation twice — it would run `npm install` twice on every load.
+  nx.test.it("a repeated setup hook is elided", function()
+    local tdir = nx.test.tempdir()
+    local hook = [[{ "require": "workspace-setup.node", "method": "ensure",
+                     "params": ["vscode-langservers-extracted", "eslint-formatter-visualstudio"] }]]
+    nx.await(nx.fs.write(tdir .. "/node.json", '{"setup": ' .. hook .. "}"))
+    -- A different template naming the SAME hook, plus one of its own.
+    nx.await(
+      nx.fs.write(
+        tdir .. "/web.json",
+        '{"setup": [' .. hook .. ', { "require": "workspace-setup.web", "method": "prepare" }]}'
+      )
+    )
+    local cpath = nx.test.tempdir() .. "/config.json"
+
+    nx.await(templates.add("node", { dir = tdir, config_path = cpath }))
+    nx.await(templates.add("node", { dir = tdir, config_path = cpath })) -- again
+    nx.await(templates.add("web", { dir = tdir, config_path = cpath }))
+
+    local w = nx.json.decode(nx.await(nx.fs.read_text(cpath)))
+    nx.test.expect(#w.setup).to_be(2)
+    nx.test.expect(w.setup[1].require).to_be("workspace-setup.node")
+    nx.test.expect(w.setup[2].require).to_be("workspace-setup.web")
+  end)
+
+  -- Same require+method with DIFFERENT params is a different call — both must survive,
+  -- or a template's package list silently disappears.
+  nx.test.it("hooks differing only in params are both kept", function()
+    local a = { require = "workspace-setup.node", method = "ensure", params = { "pkg-a" } }
+    local b = { require = "workspace-setup.node", method = "ensure", params = { "pkg-b" } }
+    nx.test.expect(#templates.merge_setup(a, b)).to_be(2)
+    nx.test.expect(#templates.merge_setup(a, a)).to_be(1)
+    -- Both spellings on either side, and "no hooks at all" stays no hooks.
+    nx.test.expect(#templates.merge_setup({ a }, b)).to_be(2)
+    nx.test.expect(#templates.merge_setup(nil, nil)).to_be(0)
+    nx.test.expect(templates.merge({ x = 1 }, { y = 2 }).setup).to_be_nil()
+  end)
+
   -- A template says `"pylsp": {}` — "this server, default options", the commonest thing
   -- to write. It has to survive decode -> merge -> encode as an OBJECT: an empty Lua
   -- table is equally an empty array, so the merged config was written back with

@@ -1,4 +1,9 @@
 {
+  "setup": {
+    "require": "workspace-setup.python",
+    "method": "venv",
+    "params": { "dir": ".venv" }
+  },
   "languages": {
     "python": {
       "lsps": {

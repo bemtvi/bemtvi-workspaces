@@ -12,6 +12,11 @@
 -- `save_actions` is the save chain, not a splice over the old one) — exactly
 -- `nx.tbl.deep_extend("force", …)`, which `merge` below is a named alias for.
 --
+-- `setup` is the ONE key that accumulates: a template writes the single hook its
+-- language needs (the dict form), and merging collects every config's hooks into one
+-- deduped LIST, so a project built from three templates runs all three preparations
+-- rather than only the last merged one. See `merge_setup`.
+--
 -- REMOTE SESSIONS. Two filesystems are in play, and they route to different sides:
 --   * the TEMPLATES live in the config dir (`vim.fn.stdpath("config")`), which is always
 --     LOCAL to the editor process — in a `--connect-daemon` session it is the client's
@@ -84,6 +89,56 @@ local function dirname(path)
   return path:match("^(.*)/[^/]+$")
 end
 
+-- The `setup` hooks of one config as a LIST, whatever the source spelled them. A
+-- template writes the dict form (`{ require=, method=, params= }`) — one hook is what a
+-- template has to say — and the schema also takes an array; both mean a list of calls.
+-- Shape errors are left to `config.normalize`, which validates the merged result: this
+-- only has to decide "one, or several".
+local function setup_entries(value)
+  if type(value) ~= "table" or next(value) == nil then
+    return {}
+  end
+  if not config_mod.is_array(value) then
+    return { value }
+  end
+  local out = {}
+  for i, entry in ipairs(value) do
+    out[i] = entry
+  end
+  return out
+end
+
+-- The merged `setup`: every hook from `dst` then every hook from `src`, in that order,
+-- with entries that are structurally identical elided.
+--
+-- Setup hooks are the one key that ACCUMULATES rather than being overwritten. Each
+-- template carries the preparation its own language needs (a node template ensures its
+-- npm packages, a python one its venv), so a project that merges three templates must
+-- end up running all three — "template wins" would leave it running only the last one's,
+-- silently dropping the preparation the earlier merges were for. Re-merging a template,
+-- or two templates that share a hook, must NOT run it twice, hence the dedupe: identical
+-- means same require/method/params all the way down (`nx.tbl.deep_equal`), so two
+-- `ensure` calls listing different packages are two different hooks and both survive.
+local function merge_setup(dst, src)
+  local merged = {}
+  local function add(entry)
+    for _, seen in ipairs(merged) do
+      if nx.tbl.deep_equal(seen, entry) then
+        return
+      end
+    end
+    merged[#merged + 1] = entry
+  end
+  for _, entry in ipairs(setup_entries(dst)) do
+    add(entry)
+  end
+  for _, entry in ipairs(setup_entries(src)) do
+    add(entry)
+  end
+  return merged
+end
+M.merge_setup = merge_setup
+
 -- Deep-merge `src` over `dst` (template wins), returning a fresh table.
 --
 -- Objects merge recursively so a template can add one language without dropping the
@@ -91,12 +146,18 @@ end
 -- `save_actions` over an existing three-entry one is that one entry, not a splice
 -- leaving entries 2 and 3 of the OLD chain behind. A list in this schema is an ordered
 -- whole, so "the template's list" means exactly that. Both halves are
--- `nx.tbl.deep_extend("force", …)`'s rule, so this is a named alias for it.
+-- `nx.tbl.deep_extend("force", …)`'s rule, so most of this is a named alias for it.
+--
+-- The exception is `setup` (see `merge_setup`): its hooks accumulate into a deduped
+-- list, so the merged config always spells `setup` as an array — the canonical form.
 local function merge(dst, src)
   if type(src) ~= "table" or type(dst) ~= "table" then
     return src
   end
-  return nx.tbl.deep_extend("force", dst, src)
+  local merged = nx.tbl.deep_extend("force", dst, src)
+  local setup = merge_setup(dst.setup, src.setup)
+  merged.setup = #setup > 0 and setup or nil
+  return merged
 end
 M.merge = merge
 

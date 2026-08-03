@@ -1,0 +1,23 @@
+{
+  "setup": {
+    "require": "workspace-setup.node",
+    "method": "ensure",
+    "params": ["vscode-langservers-extracted", "eslint-formatter-visualstudio"]
+  },
+  "languages": {
+    "javascript,typescript,javascriptreact,typescriptreact": {
+      "lsps": {
+        "eslint": {},
+        "ts_ls": {}
+      },
+      "save_actions": [
+        {
+          "require": "nx.lsp",
+          "method": "code_action",
+          "params": { "context": { "only": ["source.fixAll.eslint"] }, "apply": true }
+        }
+      ],
+      "settings": { "tabstop": 2, "shiftwidth": 2, "expandtab": true }
+    }
+  }
+}

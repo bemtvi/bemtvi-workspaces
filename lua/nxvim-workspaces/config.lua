@@ -10,7 +10,8 @@
 --
 --   {
 --     settings   = { <name> = <value>, ... } | nil,   -- global, applied once at start
---     setup      = { require=, method=, params= } | nil, -- async hook, awaited first
+--     setup      = { { require=, method=, params= }, ... }, -- async hooks, awaited first,
+--                                                      -- in order; may be empty
 --     languages  = {
 --       { filetypes   = { "js", "html", ... },        -- the language key, comma-split
 --         lsps        = { <name> = <cfg-table>, ... }, -- may be empty
@@ -170,11 +171,27 @@ function M.normalize(raw)
     settings = check_settings(raw.settings, "top-level")
   end
 
-  -- The optional async `setup` hook: a call spec run + awaited BEFORE the rest of the
-  -- config is applied (its Lua lives in the user's config dir; the JSON just names it).
-  local setup = nil
+  -- The optional async `setup` hooks: call specs run + awaited BEFORE the rest of the
+  -- config is applied (their Lua lives in the user's config dir; the JSON just names
+  -- them). Written as ONE object or as an ARRAY of them — a workspace usually grows a
+  -- second hook (compute paths, then install a dep) and nesting one inside the other in
+  -- somebody's Lua is not a schema. Both spellings normalize to a list, run in order,
+  -- each awaited before the next, so `setup` reads exactly like `save_actions`.
+  --
+  local setup = {}
   if raw.setup ~= nil then
-    setup = check_call(raw.setup, "top-level `setup`")
+    if type(raw.setup) ~= "table" then
+      fail("top-level `setup` must be an object, or an array of them")
+    end
+    if is_array(raw.setup) then
+      -- Which also covers an EMPTY table: `[]` and `{}` decode alike, and "no hooks" is
+      -- the only reading true of both — the loop simply runs zero times.
+      for i, spec in ipairs(raw.setup) do
+        setup[i] = check_call(spec, "top-level `setup`[" .. i .. "]")
+      end
+    else
+      setup[1] = check_call(raw.setup, "top-level `setup`")
+    end
   end
 
   local languages = {}
