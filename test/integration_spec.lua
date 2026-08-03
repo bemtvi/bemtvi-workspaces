@@ -180,6 +180,30 @@ nx.test.describe("nxvim-workspaces end-to-end", function()
     nx.test.expect(nx.win.buf(dock_win)).to_be(dock_buf)
   end)
 
+  -- The skeleton :WorkspaceConfig writes for a project that has none must be the shape
+  -- the schema describes: `languages` and `settings` are OBJECTS. A bare `{}` encodes as
+  -- `[]`, so the file the plugin creates for you started out contradicting its own
+  -- schema — and a config editor / JSON-schema validator flags it before you type a key.
+  nx.test.it(":WorkspaceConfig creates a skeleton whose empty keys are objects", function(t)
+    local path = nx.test.tempdir() .. "/.nxvim/config.json"
+    ws._register_commands({ path = path, trust = false })
+
+    -- The command opens the file once it has written it, so the buffer landing is the
+    -- signal that the write completed (the predicate itself cannot await).
+    t:cmd("WorkspaceConfig")
+    t:wait_for(function()
+      return nx.buf.name(nx.buf.current()) == path
+    end, { message = "skeleton never created" })
+
+    local text = nx.await(nx.fs.read_text(path))
+    nx.test.expect(text:find("%[%s*%]")).to_be_nil()
+    nx.test.expect(text).to_contain("{}")
+    -- And it still parses as the empty config it means.
+    local decoded = nx.json.decode(text)
+    nx.test.expect(next(decoded.languages)).to_be_nil()
+    nx.test.expect(next(decoded.settings)).to_be_nil()
+  end)
+
   -- Same for the template merge, which opens the merged config when it lands.
   nx.test.it(":WorkspaceTemplate opens the merged config in the main layer", function(t)
     local dir = nx.test.tempdir()

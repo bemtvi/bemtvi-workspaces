@@ -141,6 +141,29 @@ nx.test.describe("nxvim-workspaces.templates", function()
     nx.test.expect(w.languages.python.save_actions[1].require).to_be("nx")
   end)
 
+  -- A template says `"pylsp": {}` — "this server, default options", the commonest thing
+  -- to write. It has to survive decode -> merge -> encode as an OBJECT: an empty Lua
+  -- table is equally an empty array, so the merged config was written back with
+  -- `"pylsp": []` — a file contradicting the very schema this plugin validates. The
+  -- fixture is raw JSON text (not nx.json.encode) so its `{}` is genuinely an object.
+  nx.test.it("an empty object in a template stays an object on disk", function()
+    local tdir = nx.test.tempdir()
+    nx.await(
+      nx.fs.write(tdir .. "/py.json", '{"languages":{"python":{"lsps":{"pylsp":{},"ruff":{}}}}}')
+    )
+    local cpath = nx.test.tempdir() .. "/config.json"
+
+    nx.await(templates.add("py", { dir = tdir, config_path = cpath }))
+
+    local text = nx.await(nx.fs.read_text(cpath))
+    nx.test.expect(text:find("%[%s*%]")).to_be_nil()
+    local w = nx.json.decode(text)
+    nx.test.expect(type(w.languages.python.lsps.pylsp)).to_be("table")
+    -- Re-encoding what we just read back is the NEXT :WorkspaceTemplate over this file;
+    -- the object must not decay into an array on the second pass either.
+    nx.test.expect(nx.json.encode(w)).to_contain('"pylsp":{}')
+  end)
+
   nx.test.it(
     "add fails loud (and writes nothing) on a template that makes the config invalid",
     function()

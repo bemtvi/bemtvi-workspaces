@@ -212,9 +212,11 @@ local function edit_config(opts)
         if dir then
           nx.await(nx.fs.mkdir(dir, { recursive = true }))
         end
-        nx.await(
-          nx.fs.write(path, nx.json.encode({ languages = {}, settings = {} }, { pretty = true }))
-        )
+        -- Both keys hold OBJECTS in the schema, and a bare `{}` encodes as `[]` (Lua
+        -- cannot tell an empty map from an empty list) — so the skeleton must say
+        -- which it is, or the file we just created contradicts its own schema.
+        local skeleton = { languages = nx.json.empty_object(), settings = nx.json.empty_object() }
+        nx.await(nx.fs.write(path, nx.json.encode(skeleton, { pretty = true })))
         open()
       end)()
     end)
