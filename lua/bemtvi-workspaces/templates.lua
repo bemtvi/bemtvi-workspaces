@@ -1,8 +1,8 @@
 -- Ready-made JSON workspace templates + the merge that materializes one into a
--- project's `.nxvim/config.json`.
+-- project's `.bemtvi/config.json`.
 --
 -- Templates live in the user's config dir under `workspace-templates/<name>.json`, each
--- a partial (or full) `.nxvim/config.json` in the same schema. `:WorkspaceTemplate
+-- a partial (or full) `.bemtvi/config.json` in the same schema. `:WorkspaceTemplate
 -- <name>` (see init.lua) deep-merges the chosen template into the project's config,
 -- validates the result, and writes it back — the JSON twin of the neovim setup that
 -- copies a per-workspace rc from a template dir.
@@ -10,7 +10,7 @@
 -- MERGE SEMANTICS. Objects merge recursively (a template can add one language without
 -- dropping the others); a LIST replaces its counterpart wholesale (a template's
 -- `save_actions` is the save chain, not a splice over the old one) — exactly
--- `nx.tbl.deep_extend("force", …)`, which `merge` below is a named alias for.
+-- `btv.tbl.deep_extend("force", …)`, which `merge` below is a named alias for.
 --
 -- `setup` is the ONE key that accumulates: a template writes the single hook its
 -- language needs (the dict form), and merging collects every config's hooks into one
@@ -21,28 +21,28 @@
 --   * the TEMPLATES live in the config dir (`vim.fn.stdpath("config")`), which is always
 --     LOCAL to the editor process — in a `--connect-daemon` session it is the client's
 --     config (or the daemon's config materialized onto a local cache). So templates are
---     read through `nx.fs_local` (the local-always seam), never `nx.fs` (which crosses to
---     the daemon). `nx.fs_local` is exactly `nx.fs` in a bare/local session.
---   * the PROJECT config (`.nxvim/config.json`) lives in the workspace, which in a daemon
---     session is REMOTE — so it is read/written through `nx.fs`, the same seam the editor
+--     read through `btv.fs_local` (the local-always seam), never `btv.fs` (which crosses to
+--     the daemon). `btv.fs_local` is exactly `btv.fs` in a bare/local session.
+--   * the PROJECT config (`.bemtvi/config.json`) lives in the workspace, which in a daemon
+--     session is REMOTE — so it is read/written through `btv.fs`, the same seam the editor
 --     opens the file with. `add()` therefore mixes the two: local template, remote config.
 
-local config_mod = require("nxvim-workspaces.config")
+local config_mod = require("bemtvi-workspaces.config")
 
 local M = {}
 
 -- The templates directory: `<config-dir>/workspace-templates`. `vim.fn.stdpath` resolves
--- the active nxvim config dir ($NXVIM_CONFIG / $XDG_CONFIG_HOME/nxvim / ~/.config/nxvim).
+-- the active bemtvi config dir ($BEMTVI_CONFIG / $XDG_CONFIG_HOME/bemtvi / ~/.config/bemtvi).
 function M.dir()
   local cfg = vim.fn.stdpath("config")
   return (cfg and cfg ~= "" and cfg or ".") .. "/workspace-templates"
 end
 
--- The project's config path: `<workspace-root>/.nxvim/config.json`, absolute (the cwd is
+-- The project's config path: `<workspace-root>/.bemtvi/config.json`, absolute (the cwd is
 -- only a defensive fallback — the :Workspace* commands run inside a --workspace session).
 function M.config_path()
-  local root = nx.workspace.dir() or vim.fn.getcwd()
-  return vim.fn.fnamemodify(root .. "/.nxvim/config.json", ":p")
+  local root = btv.workspace.dir() or vim.fn.getcwd()
+  return vim.fn.fnamemodify(root .. "/.bemtvi/config.json", ":p")
 end
 
 -- List available template names (basename without the `.json`), sorted. Returns a
@@ -51,11 +51,11 @@ end
 -- it as "no templates" would hide a real problem behind a plausible-looking answer.
 function M.list(dir)
   dir = dir or M.dir()
-  return nx.async(function()
-    if not nx.await(nx.fs_local.exists(dir)) then
+  return btv.async(function()
+    if not btv.await(btv.fs_local.exists(dir)) then
       return {}
     end
-    local entries = nx.await(nx.fs_local.readdir(dir))
+    local entries = btv.await(btv.fs_local.readdir(dir))
     local names = {}
     for _, e in ipairs(entries) do
       if e.type ~= "directory" then
@@ -75,10 +75,10 @@ end
 function M.read(name, dir)
   dir = dir or M.dir()
   local path = dir .. "/" .. name .. ".json"
-  return nx.fs_local.read_text(path):next(function(text)
-    local ok, raw = pcall(nx.json.decode, text)
+  return btv.fs_local.read_text(path):next(function(text)
+    local ok, raw = pcall(btv.json.decode, text)
     if not ok then
-      error("nxvim-workspaces: template '" .. name .. "' has invalid JSON: " .. tostring(raw), 0)
+      error("bemtvi-workspaces: template '" .. name .. "' has invalid JSON: " .. tostring(raw), 0)
     end
     return raw
   end)
@@ -117,13 +117,13 @@ end
 -- end up running all three — "template wins" would leave it running only the last one's,
 -- silently dropping the preparation the earlier merges were for. Re-merging a template,
 -- or two templates that share a hook, must NOT run it twice, hence the dedupe: identical
--- means same require/method/params all the way down (`nx.tbl.deep_equal`), so two
+-- means same require/method/params all the way down (`btv.tbl.deep_equal`), so two
 -- `ensure` calls listing different packages are two different hooks and both survive.
 local function merge_setup(dst, src)
   local merged = {}
   local function add(entry)
     for _, seen in ipairs(merged) do
-      if nx.tbl.deep_equal(seen, entry) then
+      if btv.tbl.deep_equal(seen, entry) then
         return
       end
     end
@@ -146,7 +146,7 @@ M.merge_setup = merge_setup
 -- `save_actions` over an existing three-entry one is that one entry, not a splice
 -- leaving entries 2 and 3 of the OLD chain behind. A list in this schema is an ordered
 -- whole, so "the template's list" means exactly that. Both halves are
--- `nx.tbl.deep_extend("force", …)`'s rule, so most of this is a named alias for it.
+-- `btv.tbl.deep_extend("force", …)`'s rule, so most of this is a named alias for it.
 --
 -- The exception is `setup` (see `merge_setup`): its hooks accumulate into a deduped
 -- list, so the merged config always spells `setup` as an array — the canonical form.
@@ -154,29 +154,29 @@ local function merge(dst, src)
   if type(src) ~= "table" or type(dst) ~= "table" then
     return src
   end
-  local merged = nx.tbl.deep_extend("force", dst, src)
+  local merged = btv.tbl.deep_extend("force", dst, src)
   local setup = merge_setup(dst.setup, src.setup)
   merged.setup = #setup > 0 and setup or nil
   return merged
 end
 M.merge = merge
 
--- Merge template `name` into the project's `.nxvim/config.json` (creating it when
+-- Merge template `name` into the project's `.bemtvi/config.json` (creating it when
 -- absent), validate the merged result (fail loud BEFORE writing anything), and write it
 -- back pretty-printed. `opts.dir` overrides the templates dir, `opts.config_path` the
 -- destination. Returns a promise of the config path.
 function M.add(name, opts)
   opts = opts or {}
   local config_path = opts.config_path or M.config_path()
-  return nx.async(function()
-    local template = nx.await(M.read(name, opts.dir))
+  return btv.async(function()
+    local template = btv.await(M.read(name, opts.dir))
 
     local existing = {}
-    if nx.await(nx.fs.exists(config_path)) then
-      local text = nx.await(nx.fs.read_text(config_path))
-      local ok, raw = pcall(nx.json.decode, text)
+    if btv.await(btv.fs.exists(config_path)) then
+      local text = btv.await(btv.fs.read_text(config_path))
+      local ok, raw = pcall(btv.json.decode, text)
       if not ok then
-        error("nxvim-workspaces: existing config has invalid JSON: " .. tostring(raw), 0)
+        error("bemtvi-workspaces: existing config has invalid JSON: " .. tostring(raw), 0)
       end
       existing = raw
     end
@@ -188,9 +188,9 @@ function M.add(name, opts)
 
     local pdir = dirname(config_path)
     if pdir then
-      nx.await(nx.fs.mkdir(pdir, { recursive = true }))
+      btv.await(btv.fs.mkdir(pdir, { recursive = true }))
     end
-    nx.await(nx.fs.write(config_path, nx.json.encode(merged, { pretty = true })))
+    btv.await(btv.fs.write(config_path, btv.json.encode(merged, { pretty = true })))
     return config_path
   end)()
 end

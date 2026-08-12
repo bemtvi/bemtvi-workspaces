@@ -12,11 +12,11 @@
       },
       "save_actions": [
         {
-          "require": "nx.lsp",
+          "require": "btv.lsp",
           "method": "code_action",
           "params": { "context": { "only": ["source.fixAll"] }, "apply": true }
         },
-        { "require": "nx.lsp", "method": "format", "params": { "name": "ruff" } }
+        { "require": "btv.lsp", "method": "format", "params": { "name": "ruff" } }
       ],
       "settings": { "tabstop": 4, "shiftwidth": 4, "expandtab": true }
     }

@@ -12,7 +12,7 @@
       },
       "save_actions": [
         {
-          "require": "nx.lsp",
+          "require": "btv.lsp",
           "method": "code_action",
           "params": { "context": { "only": ["source.fixAll.eslint"] }, "apply": true }
         }

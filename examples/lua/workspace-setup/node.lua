@@ -4,7 +4,7 @@
 -- "params": [...] }` names exactly this: `require("workspace-setup.node").ensure(params)`.
 -- The JSON only names the call; the logic that cannot be plain data lives here.
 --
--- Returning a PROMISE is what makes it a real hook: nxvim-workspaces awaits it before it
+-- Returning a PROMISE is what makes it a real hook: bemtvi-workspaces awaits it before it
 -- applies the rest of the config (and before the next hook starts), so the servers this
 -- prepares for are enabled only once the preparation has actually finished.
 --
@@ -16,11 +16,11 @@ local M = {}
 -- check them first); here it just says what it would do, one tick later, so the await is
 -- visible in the message order.
 function M.ensure(packages)
-  return nx.promise.new(function(resolve)
-    nx.on_next_tick(function()
-      nx.notify(
+  return btv.promise.new(function(resolve)
+    btv.on_next_tick(function()
+      btv.notify(
         "workspace-setup.node (example hook): would ensure " .. table.concat(packages, ", "),
-        nx.log.levels.INFO
+        btv.log.levels.INFO
       )
       resolve(true)
     end)

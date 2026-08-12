@@ -1,6 +1,6 @@
--- Validation + normalization of the `.nxvim/config.json` declarative workspace config.
+-- Validation + normalization of the `.bemtvi/config.json` declarative workspace config.
 --
--- Pure logic (no `nx.*` runtime), so it is fully testable in isolation: it turns a
+-- Pure logic (no `btv.*` runtime), so it is fully testable in isolation: it turns a
 -- decoded-JSON table into a canonical, checked shape the applier consumes, and fails
 -- LOUD on any shape it cannot honor (no silent stubs). Non-fatal issues — an unknown
 -- key we choose to tolerate for forward-compat — are collected into `warnings` for the
@@ -26,7 +26,7 @@ local M = {}
 
 -- Fail loud with the plugin-prefixed message and no `file:line` noise (level 0).
 local function fail(msg)
-  error("nxvim-workspaces: " .. msg, 0)
+  error("bemtvi-workspaces: " .. msg, 0)
 end
 
 -- Is `t` a JSON array (a list)? After decode an empty `[]` and empty `{}` are

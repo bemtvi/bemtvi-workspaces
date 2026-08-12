@@ -1,6 +1,6 @@
 -- sample.lua — open this with the demo (see init.lua).
 --
--- With the "lua" block from .nxvim/config.json applied, this buffer has
+-- With the "lua" block from .bemtvi/config.json applied, this buffer has
 -- shiftwidth = 2, tabstop = 2, expandtab on. Try it:
 --   * `:set shiftwidth?`  -> 2
 --   * type a new function, mis-indent it, then press <C-s>: the save actions run

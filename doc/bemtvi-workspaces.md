@@ -1,31 +1,31 @@
-<!-- DO NOT EDIT doc/nxvim-workspaces.txt BY HAND. It is generated from this file by
+<!-- DO NOT EDIT doc/bemtvi-workspaces.txt BY HAND. It is generated from this file by
 panvimdoc — run `scripts/gen-vimdoc.sh` after editing. -->
 
-Per-project editor configuration for nxvim, declared as a committable
-`.nxvim/config.json` instead of hand-written rc Lua.
+Per-project editor configuration for bemtvi, declared as a committable
+`.bemtvi/config.json` instead of hand-written rc Lua.
 
-Drop a `.nxvim/config.json` at the root of a project and nxvim-workspaces applies it on
+Drop a `.bemtvi/config.json` at the root of a project and bemtvi-workspaces applies it on
 start: it enables the project's language servers, wires a `<C-s>` save-actions map per
 language (format / fix / write), and sets vim options — globally and per-filetype. It is
 the declarative twin of the little per-workspace rc files you would otherwise write by
 hand.
 
-It is built entirely on the documented `nx.*` API — `nx.fs` (async config read),
-`nx.json`, `nx.lsp`, `nx.autocmd`, `nx.keymap`, `vim.o`. There is no neovim compatibility
+It is built entirely on the documented `btv.*` API — `btv.fs` (async config read),
+`btv.json`, `btv.lsp`, `btv.autocmd`, `btv.keymap`, `vim.o`. There is no neovim compatibility
 layer; nothing blocks and nothing is intercepted.
 
-This is a WORKSPACE feature. It only acts in a `--workspace` session (`nxvim --workspace
-[dir]`), reading `<workspace-root>/.nxvim/config.json`. In a bare editor it does nothing.
+This is a WORKSPACE feature. It only acts in a `--workspace` session (`bemtvi --workspace
+[dir]`), reading `<workspace-root>/.bemtvi/config.json`. In a bare editor it does nothing.
 (Force it anyway with an explicit `setup({ path = "…" })`.)
 
 The plugin only *configures* language servers — it does not install them. Install the
-server binaries yourself. A missing binary fails loud (nxvim never pretends a server that
+server binaries yourself. A missing binary fails loud (bemtvi never pretends a server that
 isn't there is working).
 
-<!-- Passed through verbatim so `:help nxvim-workspaces` lands on this page
+<!-- Passed through verbatim so `:help bemtvi-workspaces` lands on this page
      (panvimdoc derives per-section tags but no bare project tag). -->
 ```vimdoc
-                                                             *nxvim-workspaces*
+                                                             *bemtvi-workspaces*
 ```
 
 # Install
@@ -33,29 +33,29 @@ isn't there is working).
 Declare it with the built-in `:Plugins` manager in your `init.lua`:
 
 ```lua
-nx.plugins({
+btv.plugins({
   {
-    "nxvim/nxvim-workspaces",
+    "bemtvi/bemtvi-workspaces",
     -- Supplies the `lsp/<name>.lua` presets a config's server NAMES resolve against.
-    dependencies = { "nxvim/nxvim-lspconfig" },
+    dependencies = { "bemtvi/bemtvi-lspconfig" },
   },
 })
 ```
 
 Run `:PluginSync` to clone them. That is all the setup there is: from then on, opening a
-project as a workspace (`nxvim --workspace [dir]`) applies its `.nxvim/config.json`
+project as a workspace (`bemtvi --workspace [dir]`) applies its `.bemtvi/config.json`
 automatically. (Opening the bare editor does nothing — this is a per-workspace feature.)
 
 To override the defaults (config path, save key), call `setup()` yourself instead:
 
 ```lua
-nx.plugins({
+btv.plugins({
   {
-    "nxvim/nxvim-workspaces",
+    "bemtvi/bemtvi-workspaces",
     config = function()
-      require("nxvim-workspaces").setup({
+      require("bemtvi-workspaces").setup({
         save_key = "<C-s>", -- the save-actions keymap (default "<C-s>")
-        -- path = "/abs/path/to/config.json", -- default: "<workspace-root>/.nxvim/config.json"
+        -- path = "/abs/path/to/config.json", -- default: "<workspace-root>/.bemtvi/config.json"
         -- notify_missing = false,           -- notify when no config file is found
         -- templates_dir = "…",              -- default: "<config>/workspace-templates"
         -- trust = true,                     -- prompt before applying (config runs code)
@@ -67,7 +67,7 @@ nx.plugins({
 
 # The config file
 
-`.nxvim/config.json`, at the root of the project:
+`.bemtvi/config.json`, at the root of the project:
 
 ```json
 {
@@ -81,11 +81,11 @@ nx.plugins({
       },
       "save_actions": [
         {
-          "require": "nx.lsp",
+          "require": "btv.lsp",
           "method": "code_action",
           "params": { "context": { "only": ["source.fixAll"] }, "apply": true }
         },
-        { "require": "nx.lsp", "method": "format" }
+        { "require": "btv.lsp", "method": "format" }
       ],
       "settings": { "tabstop": 4, "shiftwidth": 4 }
     },
@@ -119,16 +119,16 @@ comma-joined list (`"javascript,typescript,vue"`), in which case the block appli
 each listed filetype.
 
 ```
-lsps          once, at start   { <server> = <nx.lsp config> } — registered + enabled
+lsps          once, at start   { <server> = <btv.lsp config> } — registered + enabled
 save_actions  on <C-s>         a list of actions run in order, then the buffer is written
 settings      on the filetype  { <option> = <value> } applied buffer-local in a FileType
                                autocmd
 ```
 
-`lsps` values are ordinary `nx.lsp.config` tables (`cmd`, `filetypes`, `root_markers`,
+`lsps` values are ordinary `btv.lsp.config` tables (`cmd`, `filetypes`, `root_markers`,
 `settings`, …). Each named server is registered and enabled — it attaches when you open a
 matching file (and immediately, if one is already open). Registration is cumulative per
-server name (`nx.lsp.config` deep-merges over what is already registered), so two language
+server name (`btv.lsp.config` deep-merges over what is already registered), so two language
 blocks naming one server each contribute their settings.
 
 Several servers per language is the normal case, and all of them attach: a `pyright` +
@@ -139,14 +139,14 @@ a linter's quick-fixes and a type-checker's refactors appear together. Pick the 
 explicitly when it matters:
 
 ```json
-{ "require": "nx.lsp", "method": "format", "params": { "name": "ruff" } }
+{ "require": "btv.lsp", "method": "format", "params": { "name": "ruff" } }
 ```
 
 A bare `{}` leans entirely on the server's bundled preset: the runtimepath
 `lsp/<name>.lua` that supplies its command, filetypes, and root markers. Those presets are
-what [nxvim-lspconfig](https://github.com/nxvim/nxvim-lspconfig) ships, so install it
+what [bemtvi-lspconfig](https://github.com/bemtvi/bemtvi-lspconfig) ships, so install it
 alongside this plugin if you want to name servers rather than spell them out. Without a
-preset (or an explicit `cmd` in the JSON) there is nothing to spawn, and nxvim says so
+preset (or an explicit `cmd` in the JSON) there is nothing to spawn, and bemtvi says so
 loudly rather than pretending the server started.
 
 ## save_actions
@@ -163,16 +163,16 @@ Lua module (`"conform"`) or a dotted global path — so the built-in editor verb
 live on global tables, work directly:
 
 ```
-"nx.lsp"      "format"                     LSP format the buffer
-"nx.lsp"      "code_action"                run a code action — see the filter below
-"nx.lsp"      "rename"                     rename the symbol under the cursor
+"btv.lsp"      "format"                     LSP format the buffer
+"btv.lsp"      "code_action"                run a code action — see the filter below
+"btv.lsp"      "rename"                     rename the symbol under the cursor
 "vim.lsp.buf" "format" / "code_action"     the neovim-shaped aliases of the above
 "conform"     "format"                     a plugin module's method
 ```
 
 A bad action fails loud — a module/global that cannot be resolved, or a method that is not
 a function, raises with the offending name (never a silent no-op). Note the built-in verbs
-live on `nx.lsp` itself: there is no `nx.lsp.buf`, and a config naming it fails loud (the
+live on `btv.lsp` itself: there is no `btv.lsp.buf`, and a config naming it fails loud (the
 neovim-shaped spelling is `vim.lsp.buf`). `format` takes `{ "name": "<server>" }` to
 choose among several attached servers; `code_action` takes the filter below. An option
 neither models is rejected loudly rather than ignored.
@@ -186,7 +186,7 @@ actually mean, which is what makes it usable on `<C-s>`:
 
 ```json
 {
-  "require": "nx.lsp",
+  "require": "btv.lsp",
   "method": "code_action",
   "params": { "context": { "only": ["source.fixAll"] }, "apply": true }
 }
@@ -196,12 +196,12 @@ actually mean, which is what makes it usable on `<C-s>`:
 `source.fixAll` also picks up `source.fixAll.ruff`), and `apply` means "if exactly one
 action survives that filter, just run it". Two or more survivors still open the chooser —
 there is a real choice to make — and none is a no-op that resolves quietly, so the write
-is never blocked. Options nxvim does not model (neovim's `filter`, `range`) fail loud
+is never blocked. Options bemtvi does not model (neovim's `filter`, `range`) fail loud
 rather than being silently dropped.
 
 Async note. Actions are sequenced: when one returns a promise it is awaited before the
-next runs, and the `:write` lands only after the last has settled. nxvim's built-in
-`nx.lsp` verbs return exactly such a promise — one that resolves when the round-trip
+next runs, and the `:write` lands only after the last has settled. bemtvi's built-in
+`btv.lsp` verbs return exactly such a promise — one that resolves when the round-trip
 completes *and its edit is applied* — so a `[code_action, format]` chain runs in order and
 the file is written with the server's last edit already in it.
 
@@ -260,9 +260,9 @@ run, and nothing from the config is applied.
 `setup()` registers five commands for editing the project config from inside the editor:
 
 ```
-:WorkspaceConfig            Open .nxvim/config.json (creating an empty skeleton if
+:WorkspaceConfig            Open .bemtvi/config.json (creating an empty skeleton if
                             absent).
-:WorkspaceTemplate {name}   Merge a template into .nxvim/config.json, then open it.
+:WorkspaceTemplate {name}   Merge a template into .bemtvi/config.json, then open it.
                             Tab-completes the available template names.
 :WorkspaceReload            Re-apply the config from disk (after editing, without a
                             restart).
@@ -280,7 +280,7 @@ touched.
 # Templates
 
 Templates are ready-made JSON configs kept in your config dir under
-`workspace-templates/<name>.json` (each a partial or full `.nxvim/config.json`).
+`workspace-templates/<name>.json` (each a partial or full `.bemtvi/config.json`).
 `:WorkspaceTemplate <name>` tab-completes the available names, merges the chosen one into
 the project config, validates the result, and writes it back — the JSON twin of copying a
 per-workspace rc from a template. Override the templates dir with
@@ -309,14 +309,14 @@ survive.
 
 # Trust
 
-Applying `.nxvim/config.json` executes code (language-server commands, save actions, the
+Applying `.bemtvi/config.json` executes code (language-server commands, save actions, the
 `setup` hook), so opening an unreviewed one from a cloned repo would be a code-execution
 vector. The plugin therefore asks before the first apply, in a centered modal popup:
 
 ```
-╭─ nxvim-workspaces — trust this config? ────────────────────╮
+╭─ bemtvi-workspaces — trust this config? ────────────────────╮
 │ This workspace wants to apply its config:                  │
-│   /path/.nxvim/config.json                                 │
+│   /path/.bemtvi/config.json                                 │
 │                                                            │
 │ Applying it RUNS CODE — language servers, save             │
 │ actions, and the setup hook.                               │
@@ -333,13 +333,13 @@ is the default and trusting is always a deliberate `y`.
   which point it re-prompts (a pulled-in edit cannot slip through on an old decision). A
   declined config is also remembered (it will not nag every launch).
 - The store is local, one file per config, written atomically. Each config's decision is
-  its own file under `stdpath("state")/nxvim-workspaces/trust/` (named by a hash of the
+  its own file under `stdpath("state")/bemtvi-workspaces/trust/` (named by a hash of the
   config's absolute path — so the same config reached through a relative path is the same
   record, not a second unprompted one), so unrelated workspaces never contend on a shared
   file; each write goes to a temp file and is renamed into place (atomic on a POSIX fs),
   so a concurrent reader never sees a half-written record, and a failed write takes its
   temp file with it. The directory is created 0700 — these are security decisions, not
-  shared state. It is written to the client's disk through `nx.fs_local`, so a remote
+  shared state. It is written to the client's disk through `btv.fs_local`, so a remote
   daemon can never pre-trust its own config. The gate runs before the `setup` hook, so
   nothing from an untrusted config executes.
 - `:WorkspaceTrust` trusts + applies the current config (use it after declining, or to
@@ -352,13 +352,13 @@ is the default and trusting is always a deliberate `y`.
 `setup()` takes a table; every key is optional.
 
 ```lua
-require("nxvim-workspaces").setup({
-  path = nil,             -- config path; nil -> "<workspace-root>/.nxvim/config.json"
+require("bemtvi-workspaces").setup({
+  path = nil,             -- config path; nil -> "<workspace-root>/.bemtvi/config.json"
   save_key = "<C-s>",     -- the save-actions keymap
   notify_missing = false, -- notify when no config file is present (default: silent)
   templates_dir = nil,    -- nil -> "<config-dir>/workspace-templates"
   trust = true,           -- prompt before applying (the config runs code); false skips
-  trust_dir = nil,        -- nil -> "<state>/nxvim-workspaces/trust"
+  trust_dir = nil,        -- nil -> "<state>/bemtvi-workspaces/trust"
 })
 ```
 
@@ -368,7 +368,7 @@ one config is one trust record however it was reached.
 
 # The Lua API
 
-`require("nxvim-workspaces")` exposes the pieces the commands are built from, so a config
+`require("bemtvi-workspaces")` exposes the pieces the commands are built from, so a config
 can drive them directly.
 
 ```lua
@@ -396,13 +396,13 @@ Neither rejects: a failure is surfaced to the user and folded into the status. A
 `load()` while one is in flight joins the first rather than racing a second apply (and,
 for an untrusted config, a second prompt).
 
-The submodules are `require`-able too — `nxvim-workspaces.config` (pure validation +
+The submodules are `require`-able too — `bemtvi-workspaces.config` (pure validation +
 normalization), `.apply` (the effects), `.actions` (the save-action runner), `.templates`
 (list / read / merge), and `.trust` (the gate and its store).
 
 # Behavior notes
 
-- No config, no problem. A project without `.nxvim/config.json` is a silent no-op.
+- No config, no problem. A project without `.bemtvi/config.json` is a silent no-op.
 - A broken config fails loud. Invalid JSON, or a shape the plugin cannot honor (a
   non-object `languages`, a `save_action` missing `require`/`method`, …) is reported —
   never silently skipped. Unknown keys are tolerated with a warning (forward-compat), as
@@ -413,11 +413,11 @@ normalization), `.apply` (the effects), `.actions` (the save-action runner), `.t
   buffer list and applying each language's settings and `<C-s>` map to every loaded buffer
   of that type. That matters in a `--workspace` session, which restores a full layout —
   several buffers are typically open before the config lands, not just one.
-- `.nxvim/config.json` runs code — so it is trust-gated. See Trust above.
+- `.bemtvi/config.json` runs code — so it is trust-gated. See Trust above.
 - Remote (`--connect-daemon`) sessions work. The project config lives in the workspace,
-  which is remote in a daemon session, so it is read/written through `nx.fs` (the same
-  seam that opens the file) at `nx.workspace.dir()`. Templates live in the config dir,
-  which is always local to the editor, so they are read through `nx.fs_local` (the
+  which is remote in a daemon session, so it is read/written through `btv.fs` (the same
+  seam that opens the file) at `btv.workspace.dir()`. Templates live in the config dir,
+  which is always local to the editor, so they are read through `btv.fs_local` (the
   local-always seam) — never crossing to the daemon. The two seams are identical in a
   bare/local session.
 
@@ -427,25 +427,25 @@ A runnable demo lives in `examples/`. From the repo root:
 
 ```sh
 cd examples
-NXVIM_CONFIG=. nxvim --workspace . sample.lua
+BEMTVI_CONFIG=. bemtvi --workspace . sample.lua
 ```
 
-`examples/.nxvim/config.json` enables `lua_ls`/`pyright`/`ruff`, sets global number
+`examples/.bemtvi/config.json` enables `lua_ls`/`pyright`/`ruff`, sets global number
 columns, and gives Lua files a 2-space, format-on-`<C-s>` setup — all as data. The first
 launch shows the trust dialog: press `y` to apply it.
 
 # Tests
 
-The plugin carries a Lua test suite (`test/*_spec.lua`) on nxvim's native `nx.test`
+The plugin carries a Lua test suite (`test/*_spec.lua`) on bemtvi's native `btv.test`
 framework — config validation, the save-action runner (ordering, promise-await,
 write-after-settle, fail-loud), the applier, and an end-to-end pass that loads a real
 on-disk config and asserts the wiring. Run them headlessly:
 
 ```sh
-nxvim --test-plugin .
+bemtvi --test-plugin .
 ```
 
-This help file is generated from `doc/nxvim-workspaces.md` via
+This help file is generated from `doc/bemtvi-workspaces.md` via
 [panvimdoc](https://github.com/kdheepak/panvimdoc): edit the `.md`, then run
 `bash scripts/gen-vimdoc.sh` (needs `pandoc` + `git`). Never edit the `.txt` by hand — a
 pre-push hook regenerates it and refuses a stale one.

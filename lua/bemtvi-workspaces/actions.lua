@@ -6,8 +6,8 @@
 -- before the next runs (so a promise-returning formatter completes before the write).
 -- `run_and_write` chains a `:write` after the last action settles.
 --
--- The built-in `nx.lsp.*` verbs (`format`, `code_action`, `rename`, …) are among those:
--- each returns an `nx.promise` that resolves once the round-trip completes and its edit
+-- The built-in `btv.lsp.*` verbs (`format`, `code_action`, `rename`, …) are among those:
+-- each returns an `btv.promise` that resolves once the round-trip completes and its edit
 -- is applied, so a `[code_action, format]` chain runs strictly in order and the `:write`
 -- lands after the language server's last edit — not after a bare enqueue.
 --
@@ -18,16 +18,16 @@
 
 local M = {}
 
--- A thenable is our await handle: a table exposing a `:next` method (an `nx.promise`).
+-- A thenable is our await handle: a table exposing a `:next` method (an `btv.promise`).
 local function is_thenable(v)
   return type(v) == "table" and type(v.next) == "function"
 end
 M.is_thenable = is_thenable
 
 -- Resolve `name` to a table: prefer a real Lua module (`require`), else a DOTTED GLOBAL
--- path (`nx.lsp`, `vim.lsp.buf`, …). The built-in editor verbs (format, code_action)
+-- path (`btv.lsp`, `vim.lsp.buf`, …). The built-in editor verbs (format, code_action)
 -- live on global tables rather than modules, so both forms are supported — a `require`
--- name for plugin modules (`conform`, `nx.lsp.buf`-style modules), a dotted path for the
+-- name for plugin modules (`conform`, `btv.lsp.buf`-style modules), a dotted path for the
 -- globals. Returns `(tbl)`, or `(nil, require_error)` when neither resolves.
 local function resolve_module(name)
   local ok, mod = pcall(require, name)
@@ -56,14 +56,14 @@ function M.resolve(action)
   if not mod then
     local hint = req_err and (" (" .. req_err .. ")") or ""
     error(
-      "nxvim-workspaces: cannot resolve '" .. action.require .. "' as a module or global" .. hint,
+      "bemtvi-workspaces: cannot resolve '" .. action.require .. "' as a module or global" .. hint,
       0
     )
   end
   local fn = mod[action.method]
   if type(fn) ~= "function" then
     error(
-      "nxvim-workspaces: '" .. action.require .. "." .. action.method .. "' is not a function",
+      "bemtvi-workspaces: '" .. action.require .. "." .. action.method .. "' is not a function",
       0
     )
   end
@@ -77,7 +77,7 @@ end
 -- anything runs: a typo in the last action fails the run without half-applying the ones
 -- before it (the same validate-before-you-touch-anything order `templates.add` uses).
 function M.run(actions)
-  return nx.async(function()
+  return btv.async(function()
     local calls = {}
     for i, action in ipairs(actions) do
       calls[i] = { fn = M.resolve(action), params = action.params }
@@ -85,7 +85,7 @@ function M.run(actions)
     for _, call in ipairs(calls) do
       local result = call.fn(call.params)
       if is_thenable(result) then
-        nx.await(result)
+        btv.await(result)
       end
     end
   end)()
@@ -96,11 +96,11 @@ end
 function M.run_and_write(actions)
   return M.run(actions)
     :next(function()
-      nx.cmd("write")
+      btv.cmd("write")
     end)
     :catch(function(err)
       local msg = type(err) == "table" and err.message or err
-      nx.notify("nxvim-workspaces: save actions failed: " .. tostring(msg), nx.log.levels.ERROR)
+      btv.notify("bemtvi-workspaces: save actions failed: " .. tostring(msg), btv.log.levels.ERROR)
     end)
 end
 
