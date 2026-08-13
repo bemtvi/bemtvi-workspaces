@@ -1,22 +1,22 @@
-*bemtvi-workspaces.txt*            Per-project bemtvi config as committable JSON
+*bemtvi-workspaces.txt*          Per-project bemtvi config as committable JSON
 
 ==============================================================================
-Table of Contents                         *bemtvi-workspaces-table-of-contents*
+Table of Contents                        *bemtvi-workspaces-table-of-contents*
 
-1. Install                                          |bemtvi-workspaces-install|
-2. The config file                          |bemtvi-workspaces-the-config-file|
-  - languages                     |bemtvi-workspaces-the-config-file-languages|
-  - save_actions               |bemtvi-workspaces-the-config-file-save_actions|
-  - settings                       |bemtvi-workspaces-the-config-file-settings|
-  - setup hooks                 |bemtvi-workspaces-the-config-file-setup-hooks|
-3. Commands                                        |bemtvi-workspaces-commands|
-4. Templates                                      |bemtvi-workspaces-templates|
-5. Trust                                              |bemtvi-workspaces-trust|
-6. Configuration                              |bemtvi-workspaces-configuration|
-7. The Lua API                                  |bemtvi-workspaces-the-lua-api|
-8. Behavior notes                            |bemtvi-workspaces-behavior-notes|
-9. Example                                          |bemtvi-workspaces-example|
-10. Tests                                             |bemtvi-workspaces-tests|
+1. Install                                         |bemtvi-workspaces-install|
+2. The config file                         |bemtvi-workspaces-the-config-file|
+  - languages                    |bemtvi-workspaces-the-config-file-languages|
+  - save_actions              |bemtvi-workspaces-the-config-file-save_actions|
+  - settings                      |bemtvi-workspaces-the-config-file-settings|
+  - setup hooks                |bemtvi-workspaces-the-config-file-setup-hooks|
+3. Commands                                       |bemtvi-workspaces-commands|
+4. Templates                                     |bemtvi-workspaces-templates|
+5. Trust                                             |bemtvi-workspaces-trust|
+6. Configuration                             |bemtvi-workspaces-configuration|
+7. The Lua API                                 |bemtvi-workspaces-the-lua-api|
+8. Behavior notes                           |bemtvi-workspaces-behavior-notes|
+9. Example                                         |bemtvi-workspaces-example|
+10. Tests                                            |bemtvi-workspaces-tests|
 
 Per-project editor configuration for bemtvi, declared as a committable
 `.bemtvi/config.json` instead of hand-written rc Lua.
@@ -44,7 +44,7 @@ pretends a server that isn't there is working).
 
 
 ==============================================================================
-1. Install                                          *bemtvi-workspaces-install*
+1. Install                                         *bemtvi-workspaces-install*
 
 Declare it with the built-in `:Plugins` manager in your `init.lua`:
 
@@ -85,7 +85,7 @@ instead:
 
 
 ==============================================================================
-2. The config file                          *bemtvi-workspaces-the-config-file*
+2. The config file                         *bemtvi-workspaces-the-config-file*
 
 `.bemtvi/config.json`, at the root of the project:
 
@@ -133,7 +133,7 @@ Every top-level key is optional. An unknown one is tolerated with a warning
 (forward-compat); a shape the plugin cannot honor fails loud.
 
 
-LANGUAGES                         *bemtvi-workspaces-the-config-file-languages*
+LANGUAGES                        *bemtvi-workspaces-the-config-file-languages*
 
 A map of filetype → per-language config. The key is one filetype (`"python"`)
 or a comma-joined list (`"javascript,typescript,vue"`), in which case the block
@@ -170,11 +170,11 @@ A bare `{}` leans entirely on the server's bundled preset: the runtimepath
 presets are what bemtvi-lspconfig <https://github.com/bemtvi/bemtvi-lspconfig>
 ships, so install it alongside this plugin if you want to name servers rather
 than spell them out. Without a preset (or an explicit `cmd` in the JSON) there
-is nothing to spawn, and bemtvi says so loudly rather than pretending the server
-started.
+is nothing to spawn, and bemtvi says so loudly rather than pretending the
+server started.
 
 
-SAVE_ACTIONS                   *bemtvi-workspaces-the-config-file-save_actions*
+SAVE_ACTIONS                  *bemtvi-workspaces-the-config-file-save_actions*
 
 Each language with `save_actions` installs a buffer-local `<C-s>` map. Pressing
 it runs every action in order, then writes the buffer. An action is:
@@ -238,7 +238,7 @@ superseded request, a cancelled chooser) resolves quietly instead of failing,
 so it never blocks the write.
 
 
-SETTINGS                           *bemtvi-workspaces-the-config-file-settings*
+SETTINGS                          *bemtvi-workspaces-the-config-file-settings*
 
 The top-level `settings` block is applied once at start, globally, through
 `vim.o` (which routes each option to its proper scope). A `settings` block
@@ -253,7 +253,7 @@ Any vim option name works; an unmodeled name warns-but-stores (the lenient
 compat surface), it never aborts the load.
 
 
-SETUP HOOKS                     *bemtvi-workspaces-the-config-file-setup-hooks*
+SETUP HOOKS                    *bemtvi-workspaces-the-config-file-setup-hooks*
 
 The optional top-level `setup` is a `{ require, method, params }` call (same
 resolution as a save action) run before anything else in the config is applied.
@@ -289,7 +289,7 @@ applied.
 
 
 ==============================================================================
-3. Commands                                        *bemtvi-workspaces-commands*
+3. Commands                                       *bemtvi-workspaces-commands*
 
 `setup()` registers five commands for editing the project config from inside
 the editor:
@@ -314,7 +314,7 @@ removed, so a `<C-s>` you mapped yourself is never touched.
 
 
 ==============================================================================
-4. Templates                                      *bemtvi-workspaces-templates*
+4. Templates                                     *bemtvi-workspaces-templates*
 
 Templates are ready-made JSON configs kept in your config dir under
 `workspace-templates/<name>.json` (each a partial or full
@@ -347,7 +347,7 @@ only in their `params` are distinct calls and both survive.
 
 
 ==============================================================================
-5. Trust                                              *bemtvi-workspaces-trust*
+5. Trust                                             *bemtvi-workspaces-trust*
 
 Applying `.bemtvi/config.json` executes code (language-server commands, save
 actions, the `setup` hook), so opening an unreviewed one from a cloned repo
@@ -390,7 +390,7 @@ declines, so No is the default and trusting is always a deliberate `y`.
 
 
 ==============================================================================
-6. Configuration                              *bemtvi-workspaces-configuration*
+6. Configuration                             *bemtvi-workspaces-configuration*
 
 `setup()` takes a table; every key is optional.
 
@@ -412,7 +412,7 @@ reached.
 
 
 ==============================================================================
-7. The Lua API                                  *bemtvi-workspaces-the-lua-api*
+7. The Lua API                                 *bemtvi-workspaces-the-lua-api*
 
 `require("bemtvi-workspaces")` exposes the pieces the commands are built from,
 so a config can drive them directly.
@@ -449,7 +449,7 @@ and its store).
 
 
 ==============================================================================
-8. Behavior notes                            *bemtvi-workspaces-behavior-notes*
+8. Behavior notes                           *bemtvi-workspaces-behavior-notes*
 
 - No config, no problem. A project without `.bemtvi/config.json` is a silent no-op.
 - A broken config fails loud. Invalid JSON, or a shape the plugin cannot honor (a
@@ -472,7 +472,7 @@ and its store).
 
 
 ==============================================================================
-9. Example                                          *bemtvi-workspaces-example*
+9. Example                                         *bemtvi-workspaces-example*
 
 A runnable demo lives in `examples/`. From the repo root:
 
@@ -487,7 +487,7 @@ as data. The first launch shows the trust dialog: press `y` to apply it.
 
 
 ==============================================================================
-10. Tests                                             *bemtvi-workspaces-tests*
+10. Tests                                            *bemtvi-workspaces-tests*
 
 The plugin carries a Lua test suite (`test/*_spec.lua`) on bemtvi's native
 `btv.test` framework — config validation, the save-action runner (ordering,
