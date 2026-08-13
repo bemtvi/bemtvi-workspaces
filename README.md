@@ -1,6 +1,6 @@
 # bemtvi-workspaces
 
-Per-project editor configuration for [bemtvi](https://github.com/davidrios/bemtvi),
+Per-project editor configuration for [bemtvi](https://github.com/bemtvi/bemtvi),
 declared as a committable **`.bemtvi/config.json`** instead of hand-written rc Lua.
 
 Drop a `.bemtvi/config.json` at the root of a project and bemtvi-workspaces applies it on
