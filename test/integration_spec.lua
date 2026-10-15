@@ -29,13 +29,13 @@ btv.test.describe("bemtvi-workspaces end-to-end", function()
     btv.await(ws.setup({ path = path, trust = false }))
 
     -- Global settings applied once, at load.
-    btv.test.expect(vim.o.tabstop).to_be(6)
+    btv.test.expect(btv.o.tabstop).to_be(6)
     btv.test.expect(ws.config).never.to_be_nil()
 
     -- Fire the language's filetype; its buffer-local setting + <C-s> map land.
     t:cmd("setfiletype wsint")
     t:feed("", { settle = 1 })
-    btv.test.expect(vim.o.shiftwidth).to_be(2)
+    btv.test.expect(btv.o.shiftwidth).to_be(2)
 
     local found = false
     for _, m in ipairs(btv.keymap.buf_get(0, "n")) do
@@ -73,7 +73,7 @@ btv.test.describe("bemtvi-workspaces end-to-end", function()
     local seen = {} -- what the mock hook observed, read back after setup settles
     package.loaded["ws_setup_mock"] = {
       prepare = function()
-        seen.probe = vim.o.tabstop -- captured BEFORE apply mutates it
+        seen.probe = btv.o.tabstop -- captured BEFORE apply mutates it
         return btv.promise.new(function(resolve)
           btv.on_next_tick(function()
             seen.ran = true
@@ -82,7 +82,7 @@ btv.test.describe("bemtvi-workspaces end-to-end", function()
         end)
       end,
     }
-    vim.o.tabstop = 3
+    btv.o.tabstop = 3
     local path = write_config(dir, {
       setup = { require = "ws_setup_mock", method = "prepare" },
       settings = { tabstop = 8 },
@@ -92,7 +92,7 @@ btv.test.describe("bemtvi-workspaces end-to-end", function()
 
     btv.test.expect(seen.ran).to_be_truthy() -- the hook ran (its promise settled)
     btv.test.expect(seen.probe).to_be(3) -- the hook saw the pre-apply value
-    btv.test.expect(vim.o.tabstop).to_be(8) -- apply ran after the hook
+    btv.test.expect(btv.o.tabstop).to_be(8) -- apply ran after the hook
   end)
 
   -- Several hooks, run STRICTLY in turn: each one's promise settles before the next
@@ -135,7 +135,7 @@ btv.test.describe("bemtvi-workspaces end-to-end", function()
     btv.test
       .expect(order)
       .to_equal({ "one:start", "one:done", "two:start", "two:done", "three:sync" })
-    btv.test.expect(vim.o.tabstop).to_be(7) -- and the apply waited for all of them
+    btv.test.expect(btv.o.tabstop).to_be(7) -- and the apply waited for all of them
   end)
 
   -- A hook that fails aborts the apply: the hooks after it do not run, and the config's
@@ -152,7 +152,7 @@ btv.test.describe("bemtvi-workspaces end-to-end", function()
         ran[#ran + 1] = "after"
       end,
     }
-    vim.o.tabstop = 5
+    btv.o.tabstop = 5
     local path = write_config(dir, {
       setup = {
         { require = "ws_fail_mock", method = "boom" },
@@ -168,7 +168,7 @@ btv.test.describe("bemtvi-workspaces end-to-end", function()
 
     btv.test.expect(status).to_be("error")
     btv.test.expect(ran).to_equal({ "boom" }) -- the second hook never started
-    btv.test.expect(vim.o.tabstop).to_be(5) -- and nothing was applied
+    btv.test.expect(btv.o.tabstop).to_be(5) -- and nothing was applied
   end)
 
   btv.test.it("trust gate: applies only when the prompt is accepted", function()
@@ -177,12 +177,12 @@ btv.test.describe("bemtvi-workspaces end-to-end", function()
     local oconfirm = trust.confirm
 
     -- Decline -> nothing applied (fresh store).
-    vim.o.tabstop = 2
+    btv.o.tabstop = 2
     trust.confirm = function()
       return btv.promise.resolve(false)
     end
     btv.await(ws.setup({ path = path, trust_dir = dir .. "/deny" }))
-    btv.test.expect(vim.o.tabstop).to_be(2)
+    btv.test.expect(btv.o.tabstop).to_be(2)
 
     -- Accept -> applied (separate store, so it re-decides).
     trust.confirm = function()
@@ -190,7 +190,7 @@ btv.test.describe("bemtvi-workspaces end-to-end", function()
     end
     btv.await(ws.setup({ path = path, trust_dir = dir .. "/allow" }))
     trust.confirm = oconfirm
-    btv.test.expect(vim.o.tabstop).to_be(7)
+    btv.test.expect(btv.o.tabstop).to_be(7)
   end)
 
   -- load() resolves WHAT happened, so :WorkspaceReload can report the truth instead of

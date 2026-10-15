@@ -26,7 +26,7 @@ local M = {}
 
 -- The local trust directory (per-config files live here), alongside shada state.
 function M.dir()
-  return vim.fn.stdpath("state") .. "/bemtvi-workspaces/trust"
+  return btv.stdpath("state") .. "/bemtvi-workspaces/trust"
 end
 
 -- The permission bits the trust dir is created with. It holds security decisions, so it
@@ -38,7 +38,7 @@ local DIR_MODE = tonumber("700", 8)
 -- than a second, silently-unprompted one. Every path that keys or lands in a record
 -- goes through here.
 function M.abs(config_path)
-  return vim.fn.fnamemodify(config_path, ":p")
+  return btv.fname.modify(config_path, ":p")
 end
 
 -- This config's record file: one per config PATH, named by the hash of its ABSOLUTE

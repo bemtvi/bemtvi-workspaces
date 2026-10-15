@@ -11,7 +11,7 @@ the declarative twin of the little per-workspace rc files you would otherwise wr
 hand.
 
 It is built entirely on the documented `btv.*` API — `btv.fs` (async config read),
-`btv.json`, `btv.lsp`, `btv.autocmd`, `btv.keymap`, `vim.o`. There is no neovim compatibility
+`btv.json`, `btv.lsp`, `btv.autocmd`, `btv.keymap`, `btv.o`. There is no neovim compatibility
 layer; nothing blocks and nothing is intercepted.
 
 This is a WORKSPACE feature. It only acts in a `--workspace` session (`bemtvi --workspace
@@ -163,19 +163,18 @@ Lua module (`"conform"`) or a dotted global path — so the built-in editor verb
 live on global tables, work directly:
 
 ```
-"btv.lsp"      "format"                     LSP format the buffer
-"btv.lsp"      "code_action"                run a code action — see the filter below
-"btv.lsp"      "rename"                     rename the symbol under the cursor
-"vim.lsp.buf" "format" / "code_action"     the neovim-shaped aliases of the above
-"conform"     "format"                     a plugin module's method
+"btv.lsp"   "format"         LSP format the buffer
+"btv.lsp"   "code_action"    run a code action — see the filter below
+"btv.lsp"   "rename"         rename the symbol under the cursor
+"conform"   "format"         a plugin module's method
 ```
 
 A bad action fails loud — a module/global that cannot be resolved, or a method that is not
 a function, raises with the offending name (never a silent no-op). Note the built-in verbs
-live on `btv.lsp` itself: there is no `btv.lsp.buf`, and a config naming it fails loud (the
-neovim-shaped spelling is `vim.lsp.buf`). `format` takes `{ "name": "<server>" }` to
-choose among several attached servers; `code_action` takes the filter below. An option
-neither models is rejected loudly rather than ignored.
+live on `btv.lsp` itself: there is no `btv.lsp.buf`, and a config naming it fails loud.
+To choose among several attached servers, `format` takes `{ "name": "<server>" }`;
+`code_action` takes the filter below. An option neither models is rejected loudly rather
+than ignored.
 
 The whole chain is resolved before any of it runs, so a typo in the last action fails the
 save without half-applying the ones before it.
@@ -211,7 +210,7 @@ write.
 
 ## settings
 
-The top-level `settings` block is applied once at start, globally, through `vim.o` (which
+The top-level `settings` block is applied once at start, globally, through `btv.o` (which
 routes each option to its proper scope). A `settings` block *inside* a language is applied
 on that language's buffers — each option routed to the scope its name implies, with the
 matching buffer installed as the current context, so a buffer-local name (`tabstop`,

@@ -91,7 +91,7 @@ btv.test.describe("bemtvi-workspaces.trust", function()
   btv.test.it("keys the decision to the absolute config path", function()
     local dir = btv.test.tempdir()
     local rel = "wsrel/.bemtvi/config.json"
-    local abs = vim.fn.fnamemodify(rel, ":p")
+    local abs = btv.fname.modify(rel, ":p")
     btv.test.expect(trust.file(rel, dir)).to_be(trust.file(abs, dir))
 
     local calls = with_answer(true, function()

@@ -4,7 +4,7 @@
 -- servers, wires a `<C-s>` "format + write" map, and flips a few options, you commit a
 -- small data file and this plugin applies it. It is built entirely on the documented
 -- `btv.*` API — `btv.fs` (async config read), `btv.json`, `btv.lsp`, `btv.autocmd`,
--- `btv.keymap`, `vim.o` — nothing blocks and nothing is intercepted.
+-- `btv.keymap`, `btv.o` — nothing blocks and nothing is intercepted.
 --
 -- This is a WORKSPACE feature: it acts only in a `--workspace` session (`bemtvi
 -- --workspace [dir]`), reading `<workspace-root>/.bemtvi/config.json`. A bare editor is
@@ -44,8 +44,8 @@
 -- next starts (so a hook may consume what the one before it produced).
 --
 -- A save action names `<module-or-dotted-global>.<method>(<params>)`. The built-in verbs
--- live on globals — `btv.lsp` (`format`, `code_action`, `rename`) and their neovim-shaped
--- `vim.lsp.buf` aliases. There is no `btv.lsp.buf`; naming it fails loud.
+-- live on a global — `btv.lsp` (`format`, `code_action`, `rename`). There is no
+-- `btv.lsp.buf`; naming it fails loud.
 --
 -- Applying the config runs code (LSP commands, save actions, the setup hook), so the
 -- first apply of a given config PROMPTS for permission; the decision is remembered in a
@@ -83,14 +83,14 @@ M.config = nil -- the last normalized config applied (for introspection / tests)
 -- per-workspace feature, so the root comes from the `--workspace` session
 -- (`btv.workspace.dir()`); the cwd is only a defensive fallback.
 local function default_path()
-  local root = btv.workspace.dir() or vim.fn.getcwd()
-  return vim.fn.fnamemodify(root .. "/.bemtvi/config.json", ":p")
+  local root = btv.workspace.dir() or btv.cwd()
+  return btv.fname.modify(root .. "/.bemtvi/config.json", ":p")
 end
 
 -- The config path in effect: an explicit `opts.path` (absolutized, so the trust key and
 -- every message name one canonical file) else the workspace default.
 local function config_path(opts)
-  return opts.path and vim.fn.fnamemodify(opts.path, ":p") or default_path()
+  return opts.path and btv.fname.modify(opts.path, ":p") or default_path()
 end
 
 -- Parse + validate a raw JSON string into a normalized config. Fails LOUD on bad JSON.

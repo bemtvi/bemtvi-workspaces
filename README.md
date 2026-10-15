@@ -30,7 +30,7 @@ otherwise write by hand.
 ```
 
 It is built entirely on the documented `btv.*` API — `btv.fs` (async config read),
-`btv.json`, `btv.lsp`, `btv.autocmd`, `btv.keymap`, `vim.o`. There is **no neovim
+`btv.json`, `btv.lsp`, `btv.autocmd`, `btv.keymap`, `btv.o`. There is **no neovim
 compatibility layer**; nothing blocks and nothing is intercepted.
 
 > **This is a workspace feature.** It only acts in a `--workspace` session (`bemtvi

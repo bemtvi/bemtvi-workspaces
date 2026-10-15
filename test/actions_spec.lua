@@ -54,10 +54,10 @@ btv.test.describe("bemtvi-workspaces.actions.resolve", function()
   btv.test.it("resolves a dotted GLOBAL path (btv.cmd) — the built-in verb form", function()
     btv.test.expect(actions.resolve({ require = "btv", method = "cmd" })).to_be(btv.cmd)
   end)
-  btv.test.it("resolves a deeper global path (vim.lsp.buf.format)", function()
+  btv.test.it("resolves a deeper global path (btv.lsp.format)", function()
     btv.test
-      .expect(actions.resolve({ require = "vim.lsp.buf", method = "format" }))
-      .to_be(vim.lsp.buf.format)
+      .expect(actions.resolve({ require = "btv.lsp", method = "format" }))
+      .to_be(btv.lsp.format)
   end)
 
   -- The README's save-action table is a promise about what a config may name. Pin it,
@@ -68,9 +68,6 @@ btv.test.describe("bemtvi-workspaces.actions.resolve", function()
       { require = "btv.lsp", method = "format" },
       { require = "btv.lsp", method = "code_action" },
       { require = "btv.lsp", method = "rename" },
-      { require = "vim.lsp.buf", method = "format" },
-      { require = "vim.lsp.buf", method = "code_action" },
-      { require = "vim.lsp.buf", method = "rename" },
     }) do
       btv.test.expect(type(actions.resolve(spec))).to_be("function")
     end

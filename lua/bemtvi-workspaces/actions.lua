@@ -25,7 +25,7 @@ end
 M.is_thenable = is_thenable
 
 -- Resolve `name` to a table: prefer a real Lua module (`require`), else a DOTTED GLOBAL
--- path (`btv.lsp`, `vim.lsp.buf`, …). The built-in editor verbs (format, code_action)
+-- path (`btv.lsp`, …). The built-in editor verbs (format, code_action)
 -- live on global tables rather than modules, so both forms are supported — a `require`
 -- name for plugin modules (`conform`, `btv.lsp.buf`-style modules), a dotted path for the
 -- globals. Returns `(tbl)`, or `(nil, require_error)` when neither resolves.

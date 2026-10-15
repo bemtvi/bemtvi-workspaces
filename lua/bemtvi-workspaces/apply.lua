@@ -14,7 +14,7 @@
 --     covers the buffers whose read sequence is still parked when we register; this pass
 --     covers the ones already past it;
 --   * per-buffer targeting via `btv.buf.call` — both the autocmd and the catch-up hand
---     us a buffer that need not be the current one, and `vim.o` routes to whatever is
+--     us a buffer that need not be the current one, and `btv.o` routes to whatever is
 --     current, so the target buffer is installed as the context first.
 --
 -- Re-applying (`:WorkspaceReload`) is idempotent: the augroup is cleared, and the save
@@ -34,7 +34,7 @@ M.SAVE_MAP_DESC = "bemtvi-workspaces: run save actions + write"
 -- so a `<C-s>` the user mapped themselves is never touched.
 M._installed = {}
 
--- Apply an option map through `vim.o`, which routes each name to its scope: a global
+-- Apply an option map through `btv.o`, which routes each name to its scope: a global
 -- name to the core, a window/buffer name to the CURRENT window/buffer. So the same
 -- helper does both duties — global-at-start (the current context is the startup
 -- buffer/window) and buffer-local for a language (the caller installs the target buffer
@@ -42,7 +42,7 @@ M._installed = {}
 -- lenient compat surface), never aborts.
 local function apply_settings(settings)
   for name, value in pairs(settings) do
-    vim.o[name] = value
+    btv.o[name] = value
   end
 end
 M.apply_settings = apply_settings
@@ -119,7 +119,7 @@ function M.apply(config, opts)
       local save_actions = lang.save_actions
       -- The per-buffer work, shared by the autocmd and the catch-up pass. Both can hand
       -- us a buffer that is NOT the current one (a FileType fires for whichever buffer
-      -- just got its type; the catch-up walks every loaded buffer), and `vim.o` routes
+      -- just got its type; the catch-up walks every loaded buffer), and `btv.o` routes
       -- buffer/window options to the CURRENT context — so install `bufnr` as that
       -- context for the duration, the way `nvim_buf_call` does.
       local function on_buf(bufnr)

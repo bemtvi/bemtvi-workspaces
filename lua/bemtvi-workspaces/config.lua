@@ -68,7 +68,7 @@ end
 M.split_filetypes = split_filetypes
 
 -- Validate an option map (`settings`): a string-keyed object. Values pass through
--- untouched to `vim.o` (the lenient compat surface classifies + stores them).
+-- untouched to `btv.o` (the lenient compat surface classifies + stores them).
 local function check_settings(settings, where)
   if type(settings) ~= "table" then
     fail(where .. " `settings` must be an object")

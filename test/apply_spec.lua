@@ -1,4 +1,4 @@
--- The applier: settings land through vim.o, lsps get configured + enabled, and a
+-- The applier: settings land through btv.o, lsps get configured + enabled, and a
 -- language with buffer-local work installs a FileType autocmd that (when the filetype
 -- settles) applies its settings and the <C-s> save-actions keymap on that buffer.
 
@@ -18,9 +18,9 @@ local function save_maps(bufnr)
 end
 
 btv.test.describe("bemtvi-workspaces.apply.apply_settings", function()
-  btv.test.it("applies options through vim.o (scope-routed)", function()
+  btv.test.it("applies options through btv.o (scope-routed)", function()
     apply.apply_settings({ tabstop = 7 })
-    btv.test.expect(vim.o.tabstop).to_be(7)
+    btv.test.expect(btv.o.tabstop).to_be(7)
   end)
 end)
 
@@ -37,7 +37,7 @@ btv.test.describe("bemtvi-workspaces.apply.apply", function()
       settings = { tabstop = 5 },
       languages = {},
     }, { group = btv.augroup.create("ws-apply-globals", { clear = true }) })
-    btv.test.expect(vim.o.tabstop).to_be(5)
+    btv.test.expect(btv.o.tabstop).to_be(5)
   end)
 
   btv.test.it("installs the <C-s> save map on a matching buffer via FileType", function(t)
@@ -58,7 +58,7 @@ btv.test.describe("bemtvi-workspaces.apply.apply", function()
     t:feed("", { settle = 1 })
 
     -- The per-language buffer-local setting was applied.
-    btv.test.expect(vim.o.tabstop).to_be(3)
+    btv.test.expect(btv.o.tabstop).to_be(3)
 
     -- A buffer-local <C-s> map with our description now exists on this buffer.
     btv.test.expect(save_maps(0)).to_equal({ "<C-s>" })
@@ -81,7 +81,7 @@ btv.test.describe("bemtvi-workspaces.apply.apply", function()
       },
     }, { group = btv.augroup.create("ws-apply-retro", { clear = true }) })
 
-    btv.test.expect(vim.o.shiftwidth).to_be(9)
+    btv.test.expect(btv.o.shiftwidth).to_be(9)
     btv.test.expect(save_maps(0)).to_equal({ "<C-s>" })
   end)
 

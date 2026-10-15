@@ -71,12 +71,12 @@
 -- and relaunch (or `:WorkspaceReload`) to change the LSPs, save actions, or options.
 -- That is the whole point: a committable, per-project JSON file instead of rc Lua.
 
-local here = vim.fn.expand("<sfile>:p:h") -- the examples/ dir
+local here = btv.expand("<sfile>:p:h") -- the examples/ dir
 
 btv.plugins({
   {
     name = "bemtvi-workspaces",
-    dir = vim.fn.fnamemodify(here, ":h"), -- the repo root (examples/'s parent)
+    dir = btv.fname.modify(here, ":h"), -- the repo root (examples/'s parent)
     -- The config names servers (`lua_ls`, `ruff`, …) and nothing else — no `cmd`, no
     -- filetypes. Those come from the runtimepath preset `lsp/<name>.lua`, which is what
     -- bemtvi-lspconfig ships, so it has to be on the runtimepath for a bare `{}` server

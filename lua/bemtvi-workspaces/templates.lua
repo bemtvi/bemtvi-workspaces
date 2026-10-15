@@ -18,7 +18,7 @@
 -- rather than only the last merged one. See `merge_setup`.
 --
 -- REMOTE SESSIONS. Two filesystems are in play, and they route to different sides:
---   * the TEMPLATES live in the config dir (`vim.fn.stdpath("config")`), which is always
+--   * the TEMPLATES live in the config dir (`btv.stdpath("config")`), which is always
 --     LOCAL to the editor process — in a `--connect-daemon` session it is the client's
 --     config (or the daemon's config materialized onto a local cache). So templates are
 --     read through `btv.fs_local` (the local-always seam), never `btv.fs` (which crosses to
@@ -31,18 +31,18 @@ local config_mod = require("bemtvi-workspaces.config")
 
 local M = {}
 
--- The templates directory: `<config-dir>/workspace-templates`. `vim.fn.stdpath` resolves
+-- The templates directory: `<config-dir>/workspace-templates`. `btv.stdpath` resolves
 -- the active bemtvi config dir ($BEMTVI_CONFIG / $XDG_CONFIG_HOME/bemtvi / ~/.config/bemtvi).
 function M.dir()
-  local cfg = vim.fn.stdpath("config")
+  local cfg = btv.stdpath("config")
   return (cfg and cfg ~= "" and cfg or ".") .. "/workspace-templates"
 end
 
 -- The project's config path: `<workspace-root>/.bemtvi/config.json`, absolute (the cwd is
 -- only a defensive fallback — the :Workspace* commands run inside a --workspace session).
 function M.config_path()
-  local root = btv.workspace.dir() or vim.fn.getcwd()
-  return vim.fn.fnamemodify(root .. "/.bemtvi/config.json", ":p")
+  local root = btv.workspace.dir() or btv.cwd()
+  return btv.fname.modify(root .. "/.bemtvi/config.json", ":p")
 end
 
 -- List available template names (basename without the `.json`), sorted. Returns a

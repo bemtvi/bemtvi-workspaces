@@ -28,11 +28,11 @@ btv.test.describe("bemtvi-workspaces workspace gate", function()
       btv.fs.write(dir .. "/.bemtvi/config.json", btv.json.encode({ settings = { tabstop = 9 } }))
     )
 
-    vim.o.tabstop = 4
+    btv.o.tabstop = 4
     with_workspace(false, dir, function()
       btv.await(ws.setup({ trust = false })) -- no path + not a workspace -> nothing happens
     end)
-    btv.test.expect(vim.o.tabstop).to_be(4) -- unchanged
+    btv.test.expect(btv.o.tabstop).to_be(4) -- unchanged
   end)
 
   btv.test.it("setup({}) in a --workspace session reads <workspace>/.bemtvi/config.json", function()
@@ -45,6 +45,6 @@ btv.test.describe("bemtvi-workspaces workspace gate", function()
     with_workspace(true, dir, function()
       btv.await(ws.setup({ trust = false }))
     end)
-    btv.test.expect(vim.o.tabstop).to_be(6)
+    btv.test.expect(btv.o.tabstop).to_be(6)
   end)
 end)
