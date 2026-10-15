@@ -68,16 +68,15 @@ btv.test.describe("bemtvi-workspaces end-to-end", function()
     btv.test.expect(notified).to_match("bemtvi%-workspaces")
   end)
 
-  btv.test.it("runs the async `setup` hook, awaited, before applying the rest", function(t)
+  btv.test.it("runs the async `setup` hook, awaited, before applying the rest", function()
     local dir = btv.test.tempdir()
-    _G.__ws_probe = nil
-    _G.__ws_setup_ran = nil
+    local seen = {} -- what the mock hook observed, read back after setup settles
     package.loaded["ws_setup_mock"] = {
       prepare = function()
-        _G.__ws_probe = vim.o.tabstop -- captured BEFORE apply mutates it
+        seen.probe = vim.o.tabstop -- captured BEFORE apply mutates it
         return btv.promise.new(function(resolve)
           btv.on_next_tick(function()
-            _G.__ws_setup_ran = true
+            seen.ran = true
             resolve(true)
           end)
         end)
@@ -91,8 +90,8 @@ btv.test.describe("bemtvi-workspaces end-to-end", function()
 
     btv.await(ws.setup({ path = path, trust = false }))
 
-    btv.test.expect(_G.__ws_setup_ran).to_be_truthy() -- the hook ran (its promise settled)
-    btv.test.expect(_G.__ws_probe).to_be(3) -- the hook saw the pre-apply value
+    btv.test.expect(seen.ran).to_be_truthy() -- the hook ran (its promise settled)
+    btv.test.expect(seen.probe).to_be(3) -- the hook saw the pre-apply value
     btv.test.expect(vim.o.tabstop).to_be(8) -- apply ran after the hook
   end)
 

@@ -181,7 +181,7 @@ btv.test.describe("bemtvi-workspaces.apply.apply", function()
     btv.test.expect(save_maps(0)).to_equal({ "<F7>" })
   end)
 
-  btv.test.it("installs no FileType autocmd for an lsps-only language", function(t)
+  btv.test.it("installs no FileType autocmd for an lsps-only language", function()
     local before = #btv.autocmd.get({ event = "FileType" })
     apply.apply({
       settings = nil,

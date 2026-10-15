@@ -35,6 +35,7 @@ local function resolve_module(name)
     return mod
   end
   local req_err = (not ok) and tostring(mod) or nil
+  -- selene: allow(global_usage) -- walking a dotted global path is the feature itself
   local cur = _G
   for part in name:gmatch("[^.]+") do
     if type(cur) ~= "table" then
