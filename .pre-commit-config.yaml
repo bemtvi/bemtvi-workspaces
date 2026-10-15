@@ -1,8 +1,18 @@
-# Enable the pre-push hook once after cloning:
-#   pre-commit install --hook-type pre-push
+# Enable the hooks once after cloning:
+#   pre-commit install --hook-type pre-commit --hook-type pre-push
 repos:
   - repo: local
     hooks:
+      - id: stylua
+        name: stylua
+        entry: stylua --check
+        language: system
+        types: [lua]
+      - id: selene
+        name: selene
+        entry: selene
+        language: system
+        types: [lua]
       - id: vimdoc-up-to-date
         name: vimdoc up to date
         entry: scripts/check-vimdoc.sh
