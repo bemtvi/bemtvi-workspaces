@@ -114,36 +114,39 @@ btv.test.describe("bemtvi-workspaces.apply.apply", function()
   -- already loaded when the (async) config lands. The catch-up pass must reach all of
   -- them — and each one's buffer-local settings must land on THAT buffer, not on
   -- whichever happens to be current.
-  btv.test.it("catches up EVERY loaded buffer of the filetype, not just the current one", function(t)
-    local d = btv.test.tempdir()
-    btv.await(btv.fs.write(d .. "/a.txt", "a\n"))
-    btv.await(btv.fs.write(d .. "/b.txt", "b\n"))
-    t:cmd("edit " .. d .. "/a.txt")
-    t:cmd("setfiletype wsmulti")
-    local first = btv.buf.current()
-    t:cmd("edit " .. d .. "/b.txt")
-    t:cmd("setfiletype wsmulti")
-    local second = btv.buf.current()
-    t:feed("", { settle = 1 })
-    btv.test.expect(first).never.to_be(second)
+  btv.test.it(
+    "catches up EVERY loaded buffer of the filetype, not just the current one",
+    function(t)
+      local d = btv.test.tempdir()
+      btv.await(btv.fs.write(d .. "/a.txt", "a\n"))
+      btv.await(btv.fs.write(d .. "/b.txt", "b\n"))
+      t:cmd("edit " .. d .. "/a.txt")
+      t:cmd("setfiletype wsmulti")
+      local first = btv.buf.current()
+      t:cmd("edit " .. d .. "/b.txt")
+      t:cmd("setfiletype wsmulti")
+      local second = btv.buf.current()
+      t:feed("", { settle = 1 })
+      btv.test.expect(first).never.to_be(second)
 
-    apply.apply({
-      settings = nil,
-      languages = {
-        {
-          filetypes = { "wsmulti" },
-          lsps = {},
-          settings = { shiftwidth = 5 },
-          save_actions = { { require = "btv", method = "cmd" } },
+      apply.apply({
+        settings = nil,
+        languages = {
+          {
+            filetypes = { "wsmulti" },
+            lsps = {},
+            settings = { shiftwidth = 5 },
+            save_actions = { { require = "btv", method = "cmd" } },
+          },
         },
-      },
-    }, { group = btv.augroup.create("ws-apply-multi", { clear = true }) })
+      }, { group = btv.augroup.create("ws-apply-multi", { clear = true }) })
 
-    for _, b in ipairs({ first, second }) do
-      btv.test.expect(btv.bo[b].shiftwidth).to_be(5)
-      btv.test.expect(save_maps(b)).to_equal({ "<C-s>" })
+      for _, b in ipairs({ first, second }) do
+        btv.test.expect(btv.bo[b].shiftwidth).to_be(5)
+        btv.test.expect(save_maps(b)).to_equal({ "<C-s>" })
+      end
     end
-  end)
+  )
 
   -- :WorkspaceReload re-applies onto buffers that already carry the previous apply's
   -- map. Installing a second one would stack (both fire), and a changed save_key would

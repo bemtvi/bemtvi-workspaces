@@ -285,7 +285,9 @@ btv.test.describe("bemtvi-workspaces end-to-end", function()
     local dir = btv.test.tempdir()
     local tpl_dir = btv.test.tempdir()
     local path = dir .. "/config.json"
-    btv.await(btv.fs.write(tpl_dir .. "/rusty.json", btv.json.encode({ settings = { tabstop = 3 } })))
+    btv.await(
+      btv.fs.write(tpl_dir .. "/rusty.json", btv.json.encode({ settings = { tabstop = 3 } }))
+    )
     ws._register_commands({ path = path, templates_dir = tpl_dir, trust = false })
 
     t:exec(function()

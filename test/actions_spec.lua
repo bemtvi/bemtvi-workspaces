@@ -47,7 +47,9 @@ btv.test.describe("bemtvi-workspaces.actions.resolve", function()
   btv.test.it("resolves a real module method to its function", function()
     local mock = make_mock()
     package.loaded["bemtvi_ws_mock"] = mock
-    btv.test.expect(actions.resolve({ require = "bemtvi_ws_mock", method = "sync" })).to_be(mock.sync)
+    btv.test
+      .expect(actions.resolve({ require = "bemtvi_ws_mock", method = "sync" }))
+      .to_be(mock.sync)
   end)
   btv.test.it("resolves a dotted GLOBAL path (btv.cmd) — the built-in verb form", function()
     btv.test.expect(actions.resolve({ require = "btv", method = "cmd" })).to_be(btv.cmd)

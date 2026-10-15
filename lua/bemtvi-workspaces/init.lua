@@ -228,7 +228,10 @@ local function edit_config(opts)
       end)()
     end)
     :catch(function(err)
-      btv.notify("bemtvi-workspaces: " .. tostring(err and err.message or err), btv.log.levels.ERROR)
+      btv.notify(
+        "bemtvi-workspaces: " .. tostring(err and err.message or err),
+        btv.log.levels.ERROR
+      )
     end)
 end
 
@@ -251,7 +254,10 @@ function M._register_commands(opts)
         btv.notify("bemtvi-workspaces: merged template '" .. name .. "'", btv.log.levels.INFO)
       end)
       :catch(function(err)
-        btv.notify("bemtvi-workspaces: " .. tostring(err and err.message or err), btv.log.levels.ERROR)
+        btv.notify(
+          "bemtvi-workspaces: " .. tostring(err and err.message or err),
+          btv.log.levels.ERROR
+        )
       end)
   end, {
     desc = "Merge a workspace template into .bemtvi/config.json, then open it",
@@ -290,7 +296,10 @@ function M._register_commands(opts)
         end
       end)
       :catch(function(err)
-        btv.notify("bemtvi-workspaces: " .. tostring(err and err.message or err), btv.log.levels.ERROR)
+        btv.notify(
+          "bemtvi-workspaces: " .. tostring(err and err.message or err),
+          btv.log.levels.ERROR
+        )
       end)
   end, { desc = "Trust and apply the project's .bemtvi/config.json" })
 
@@ -305,7 +314,10 @@ function M._register_commands(opts)
         )
       end)
       :catch(function(err)
-        btv.notify("bemtvi-workspaces: " .. tostring(err and err.message or err), btv.log.levels.ERROR)
+        btv.notify(
+          "bemtvi-workspaces: " .. tostring(err and err.message or err),
+          btv.log.levels.ERROR
+        )
       end)
   end, { desc = "Forget the trust decision for the project config (re-prompts next load)" })
 end
