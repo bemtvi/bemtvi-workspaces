@@ -163,6 +163,22 @@ btv.test.describe("bemtvi-workspaces.trust", function()
     btv.test.expect(tostring(cr)).to_be("false")
   end)
 
+  -- A modeless session (`'modeless'`, GUI and web) has no Normal mode: the dialog rests
+  -- in Insert, refuses typing, and takes its keys through the `modeless` keymap layer.
+  -- Without them nothing answers the grabbing dialog, and the user is stuck in it.
+  btv.test.it("answers y / n / <Esc> in a modeless session", function(t)
+    btv.o.modeless = true
+    for key, want in pairs({ y = "true", n = "false", ["<Esc>"] = "false" }) do
+      local got = "PENDING"
+      trust.confirm("/x/.bemtvi/config.json"):next(function(r)
+        got = r
+      end)
+      t:feed("", { settle = 3 })
+      t:feed(key, { settle = 3 })
+      btv.test.expect(key .. "=" .. tostring(got)).to_be(key .. "=" .. want)
+    end
+  end)
+
   btv.test.it("persists the record { path, hash, trusted } to the local file", function()
     local dir = btv.test.tempdir()
     with_answer(true, function()

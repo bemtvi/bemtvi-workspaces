@@ -6,10 +6,11 @@ local apply = require("bemtvi-workspaces.apply")
 
 local DESC = "bemtvi-workspaces: run save actions + write"
 
--- The lhs of every save map this plugin installed on `bufnr`.
-local function save_maps(bufnr)
+-- The lhs of every save map this plugin installed on `bufnr` in `mode` (Normal by
+-- default).
+local function save_maps(bufnr, mode)
   local lhss = {}
-  for _, m in ipairs(btv.keymap.buf_get(bufnr, "n")) do
+  for _, m in ipairs(btv.keymap.buf_get(bufnr, mode or "n")) do
     if m.desc == DESC then
       lhss[#lhss + 1] = m.lhs
     end
@@ -179,7 +180,42 @@ btv.test.describe("bemtvi-workspaces.apply.apply", function()
     })
     -- Exactly one map, on the NEW key: the <F6> map from the first apply is gone.
     btv.test.expect(save_maps(0)).to_equal({ "<F7>" })
+    btv.test.expect(save_maps(0, "modeless")).to_equal({ "<F7>" })
   end)
+
+  -- A modeless session (`'modeless'`, GUI and web) has no Normal mode, and its layout
+  -- binds `<C-s>` to a plain `:write`. The save map binds in the `modeless` layer too
+  -- (buffer-local, so it wins there) when its key types nothing; a key that would type
+  -- a character stays Normal-only, or every typed one would run the save.
+  btv.test.it(
+    "binds a chord save key in the modeless layer, a typing one only in Normal",
+    function(t)
+      t:cmd("setfiletype wsmodeless")
+      t:feed("", { settle = 1 })
+      local function cfg()
+        return {
+          settings = nil,
+          languages = {
+            {
+              filetypes = { "wsmodeless" },
+              lsps = {},
+              settings = nil,
+              save_actions = { { require = "btv", method = "cmd" } },
+            },
+          },
+        }
+      end
+      apply.apply(cfg(), { group = btv.augroup.create("ws-apply-modeless", { clear = true }) })
+      btv.test.expect(save_maps(0, "modeless")).to_equal({ "<C-s>" })
+
+      apply.apply(cfg(), {
+        save_key = "<leader>w",
+        group = btv.augroup.create("ws-apply-modeless", { clear = true }),
+      })
+      btv.test.expect(#save_maps(0)).to_be(1)
+      btv.test.expect(save_maps(0, "modeless")).to_equal({})
+    end
+  )
 
   btv.test.it("installs no FileType autocmd for an lsps-only language", function()
     local before = #btv.autocmd.get({ event = "FileType" })

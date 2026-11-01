@@ -76,12 +76,39 @@ M.apply_lsps = apply_lsps
 local function clear_installed_maps()
   for bufnr, lhss in pairs(M._installed) do
     if btv.buf.is_valid(bufnr) then
-      for lhs in pairs(lhss) do
-        pcall(btv.keymap.buf_del, bufnr, "n", lhs)
+      for lhs, modes in pairs(lhss) do
+        for _, mode in ipairs(modes) do
+          pcall(btv.keymap.buf_del, bufnr, mode, lhs)
+        end
       end
     end
   end
   M._installed = {}
+end
+
+-- Whether `lhs` starts with a key that types text: a printable character, or the leader
+-- / space / another named printable.
+local function types_text(lhs)
+  local first = lhs:match("^<[^>]+>")
+  if not first then
+    return true
+  end
+  first = first:lower()
+  return first == "<leader>"
+    or first == "<localleader>"
+    or first == "<space>"
+    or first == "<lt>"
+    or first == "<bslash>"
+    or first == "<bar>"
+end
+
+-- The modes the save map binds in. A modeless session (GUI and web) has no Normal mode,
+-- and its layout binds `<C-s>` to a plain `:write`, so a save key that types nothing binds
+-- in the `modeless` keymap layer too (buffer-local, it wins over the layout there). One
+-- that would type a character stays Normal-only: in the layer, every time the character
+-- was typed it would run the save instead.
+local function save_modes(save_key)
+  return types_text(save_key) and { "n" } or { "n", "modeless" }
 end
 
 -- Apply a full normalized config.
@@ -128,11 +155,12 @@ function M.apply(config, opts)
             apply_settings(lang_settings)
           end
           if #save_actions > 0 then
-            btv.keymap.set("n", save_key, function()
+            local modes = save_modes(save_key)
+            btv.keymap.set(modes, save_key, function()
               actions.run_and_write(save_actions)
             end, { buffer = bufnr, desc = M.SAVE_MAP_DESC })
             M._installed[bufnr] = M._installed[bufnr] or {}
-            M._installed[bufnr][save_key] = true
+            M._installed[bufnr][save_key] = modes
           end
         end)
       end

@@ -152,7 +152,11 @@ loudly rather than pretending the server started.
 ## save_actions
 
 Each language with `save_actions` installs a buffer-local `<C-s>` map. Pressing it runs
-every action in order, then writes the buffer. An action is:
+every action in order, then writes the buffer. In a modeless session (`:set modeless`, the GUI
+and web editing model with no Normal mode) the map binds in the `modeless` keymap layer too, where
+it takes over the layout's plain-save `<C-s>` for that buffer. A `save_key` that starts with a
+typed character (a `<leader>` key, a letter) stays Normal-only, since in that layer it would run
+the save every time you typed the character. An action is:
 
 ```json
 { "require": "<module-or-global>", "method": "<name>", "params": <any> }
@@ -325,7 +329,8 @@ vector. The plugin therefore asks before the first apply, in a centered modal po
 ```
 
 Only `y` trusts and applies; anything else — `n`/`q`/`<Esc>`, or `<CR>` — declines, so No
-is the default and trusting is always a deliberate `y`.
+is the default and trusting is always a deliberate `y`. The same keys answer it in a modeless
+session (`:set modeless`).
 
 - The answer is remembered, keyed by the config's absolute path and a SHA-256 of its
   content. Trust once and it applies silently thereafter — until the file changes, at

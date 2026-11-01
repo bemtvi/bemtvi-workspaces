@@ -100,13 +100,17 @@ function M.confirm(config_path)
           resolve(v)
         end
         -- Only `y`/`Y` accepts; everything else (incl. `<CR>`) declines — No is default.
+        -- Each key binds in Normal and in the `modeless` keymap layer: a modeless session
+        -- (GUI and web) has no Normal mode, and the read-only dialog takes its keys only
+        -- through that layer, so without it nothing could answer the grabbing dialog.
+        local modes = { "n", "modeless" }
         for _, k in ipairs({ "y", "Y" }) do
-          ctx.keymap_set("n", k, function()
+          ctx.keymap_set(modes, k, function()
             decide(true)
           end)
         end
         for _, k in ipairs({ "n", "N", "q", "<Esc>", "<CR>" }) do
-          ctx.keymap_set("n", k, function()
+          ctx.keymap_set(modes, k, function()
             decide(false)
           end)
         end
